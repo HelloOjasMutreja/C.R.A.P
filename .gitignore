@@ -1,6 +1,11 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.DS_Store
+
+# Runtime demo outputs
+demo_output_*.jpg
+*.annotated.jpg
 
 # Runtime plant records; created automatically on first save.
 dossier/data/plants.json
