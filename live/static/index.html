@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b0f0c">
+  <title>C.R.A.P Live</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="overlay"></canvas>
+    <div id="sweep"></div>
+
+    <header id="topbar">
+      <div class="pill" id="liveStatus"><span class="dot"></span><span id="liveText">CONNECTING</span></div>
+      <div class="pill mono" id="stats">— fps</div>
+      <button class="pill chip" id="plantChip" type="button">Select plant ▾</button>
+    </header>
+
+    <div id="verdict" class="verdict neutral">
+      <div class="verdict-title" id="verdictTitle">Point the camera at a leaf</div>
+      <div class="verdict-sub" id="verdictSub">Live detection</div>
+    </div>
+
+    <button id="recordBtn" type="button" aria-label="Record visit"><span></span></button>
+    <div id="recordHint">Tap to record visit</div>
+
+    <section id="sheet" class="collapsed">
+      <button id="sheetHandle" type="button" aria-label="Show plant record"><span></span></button>
+      <div id="sheetBody"></div>
+    </section>
+
+    <div id="toast"></div>
+  </main>
+
+  <div id="picker" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Which plant?</h2>
+        <button type="button" class="link" id="pickerClose">Close</button>
+      </div>
+      <button type="button" class="plant-row auto" id="pickAuto">
+        <b>Auto from plant tags</b><span>Point the camera at a plant's printed tag</span>
+      </button>
+      <div id="plantList"></div>
+      <form id="newPlant">
+        <label>New plant
+          <input id="newPlantId" placeholder="PLANT_001" autocomplete="off" autocapitalize="characters">
+        </label>
+        <label>Location
+          <input id="newPlantLocation" placeholder="Bed A1" autocomplete="off">
+        </label>
+        <button type="submit" class="primary">Use this plant</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="start" class="modal">
+    <div class="modal-card center">
+      <div class="logo">🌿</div>
+      <h1>C.R.A.P Live</h1>
+      <p class="muted">Live plant disease detection. The phone streams the camera to the laptop, and the laptop runs YOLO and keeps each plant's record.</p>
+      <button type="button" class="primary big" id="startBtn">Start camera</button>
+      <p class="error" id="startError"></p>
+    </div>
+  </div>
+
+  <canvas id="capture" hidden></canvas>
+  <script src="/static/app.js"></script>
+</body>
+</html>

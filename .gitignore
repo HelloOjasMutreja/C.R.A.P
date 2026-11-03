@@ -9,3 +9,11 @@ demo_output_*.jpg
 
 # Runtime plant records; created automatically on first save.
 dossier/data/plants.json
+
+# Brainstorming mockups
+.superpowers/
+
+# Live server: generated certificate, recorded visit photos, printable tags
+live/certs/
+dossier/data/images/
+markers/

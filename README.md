@@ -25,6 +25,15 @@ C.R.A.P/
 │   ├── engine.py                # DiagnosticEngine (observations → diagnoses + plant status)
 │   └── tests/test_diagnostics.py
 │
+├── live/                        # 📱 Live phone camera feed (laptop runs YOLO)
+│   ├── server.py                # FastAPI app: live detection WebSocket + record-visit API
+│   ├── markers.py               # ArUco plant tags (marker 7 → PLANT_007)
+│   ├── make_tags.py             # Printable plant tags
+│   ├── certs.py                 # Self-signed HTTPS so the phone camera works
+│   ├── static/                  # Phone page (HTML/CSS/JS)
+│   └── tests/test_live.py
+│
+├── docs/brainstorm/             # 💡 Whole-project ideas (parked for after the demo)
 ├── demo_pipeline.py             # 🚀 End-to-end perception-to-dossier demonstration
 ├── requirements.txt             # Python dependencies
 └── .gitignore
@@ -50,6 +59,7 @@ python3 demo_pipeline.py
 python3 -m unittest discover dossier/tests
 python3 -m unittest discover diagnostics/tests
 python3 -m unittest discover vision/tests
+python3 -m unittest discover live/tests
 ```
 
 ---
@@ -115,6 +125,30 @@ The bridge only records what the camera saw. `DiagnosticEngine` decides what it 
 
 ---
 
+## 📱 Live Phone Feed (`live`)
+
+Your phone becomes the robot's eye. The phone streams its camera to the laptop, the laptop runs YOLO, and the phone draws the boxes over its own live video, so the video stays smooth even when detection runs at a few frames per second.
+
+```bash
+python -m live
+```
+
+1. Connect the phone and laptop to the **same Wi-Fi**. If the venue Wi-Fi blocks devices from talking to each other, connect the laptop to the **phone's hotspot** instead.
+2. Open the `https://…:8443` address the laptop prints, in Chrome on the phone.
+3. The phone warns about the certificate (it's self-signed): tap **Advanced → Proceed**. You only do this once per network address.
+4. Tap **Start camera** and allow camera access. If Windows asks about the firewall, allow Python on private networks.
+
+On screen:
+- **Live boxes**: green for healthy leaves, red for disease, with confidence.
+- **Verdict banner**: a disease is shown only if it appears in 3 of the last 8 frames, so one-frame flickers don't count.
+- **Plant record panel**: pull it up to see status, visits, and the engine's evidence for and against.
+- **Record button**: saves a full-resolution photo as a visit, then runs the diagnostic engine. A first sighting gives *suspected*; recording again on a later visit can give *confirmed*.
+- **Plant tags**: print tags with `python -m live.make_tags --count 12` and put one on a stake by each plant. When a tag is in view, the page selects that plant automatically (marker 7 → `PLANT_007`). You can also pick or add plants by hand from the top-right chip.
+
+Live frames are never saved; only tapped visits go into the dossier (photos are stored in `dossier/data/images/`). Use `--conf 0.3` to change the detection threshold, or `--no-https` to test on the laptop itself at `http://localhost:8443`.
+
+---
+
 ## 🏷️ Supported Plant & Disease Classes (29 Classes)
 
 - **Apple**: Apple Scab, Apple Rust, Healthy Leaf
@@ -137,5 +171,5 @@ The bridge only records what the camera saw. `DiagnosticEngine` decides what it 
 
 Both test suites run independently and verify full data persistence across sessions:
 ```bash
-python3 -m unittest discover dossier/tests && python3 -m unittest discover diagnostics/tests && python3 -m unittest discover vision/tests
+python3 -m unittest discover dossier/tests && python3 -m unittest discover diagnostics/tests && python3 -m unittest discover vision/tests && python3 -m unittest discover live/tests
 ```

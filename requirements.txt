@@ -4,3 +4,11 @@ torchvision
 pillow>=9.0.0
 opencv-python>=4.7.0
 numpy>=1.23.0
+
+# Live phone feed (python -m live)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+cryptography>=42
+
+# Tests
+httpx>=0.27
