@@ -13,6 +13,9 @@ class Observation:
     sensor_readings: dict[str, Optional[float]] = field(default_factory=dict)
     source: str = "unknown"
     quality: Optional[str] = None
+    # Raw model detections (class, species, condition, confidence, bbox),
+    # kept so diagnoses can be re-evaluated from the original evidence.
+    detections: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -24,6 +27,7 @@ class Diagnosis:
     contradicting_evidence: list[str] = field(default_factory=list)
     confidence: Optional[float] = None
     status: str = "suspected"
+    observation_ids: list[str] = field(default_factory=list)
 
 
 @dataclass

@@ -16,10 +16,14 @@ C.R.A.P/
 │
 ├── vision/                      # 👁️ Computer Vision & Disease Perception
 │   ├── detector.py              # PlantDocDetector (YOLOv11s inference & bounding boxes)
-│   ├── bridge.py                # DossierPerceptionBridge (auto-submits to Dossier)
+│   ├── bridge.py                # DossierPerceptionBridge (records detections as observations)
 │   ├── weights/best.pt          # Fine-tuned YOLOv11s weights (29 PlantDoc classes)
 │   ├── sample_images/           # Verification samples
 │   └── tests/test_vision.py     # Unit tests for vision and bridge
+│
+├── diagnostics/                 # 🩺 Rule-based Diagnostic Engine
+│   ├── engine.py                # DiagnosticEngine (observations → diagnoses + plant status)
+│   └── tests/test_diagnostics.py
 │
 ├── demo_pipeline.py             # 🚀 End-to-end perception-to-dossier demonstration
 ├── requirements.txt             # Python dependencies
@@ -36,7 +40,7 @@ pip install -r requirements.txt
 ```
 
 ### 2. Run Automated Demo
-Runs YOLO inference on a sample plant leaf, overlays labeled bounding boxes, and logs structured observations and diagnoses into the Dossier:
+Runs YOLO inference on a sample plant leaf, logs the detections as an observation in the Dossier, evaluates it with the diagnostic engine, and saves an image with labeled bounding boxes:
 ```bash
 python3 demo_pipeline.py
 ```
@@ -44,6 +48,7 @@ python3 demo_pipeline.py
 ### 3. Run Test Suite
 ```bash
 python3 -m unittest discover dossier/tests
+python3 -m unittest discover diagnostics/tests
 python3 -m unittest discover vision/tests
 ```
 
@@ -66,7 +71,7 @@ detections = detector.predict("path/to/leaf.jpg", conf=0.30)
 for d in detections:
     print(f"Species: {d.species} | Condition: {d.condition} | Conf: {d.confidence*100:.1f}%")
 
-# 2. Automated Bridge to Dossier
+# 2. Record the detections as an observation in the Dossier
 service = DossierService()
 bridge = DossierPerceptionBridge(service=service, detector=detector)
 
@@ -78,8 +83,35 @@ result = bridge.process_image(
 )
 
 print("Logged Observation:", result["observation"].observation_id)
-print("Logged Diagnoses:", [d.possible_condition for d in result["diagnoses"]])
+
+# 3. Evaluate the observation against the plant's history
+from diagnostics import DiagnosticEngine
+
+engine = DiagnosticEngine(service=service)
+evaluation = engine.evaluate("PLANT_001")
+
+print("Plant Status:", evaluation.plant_status)
+print("Diagnoses:", [(d.possible_condition, d.status) for d in evaluation.diagnoses])
 ```
+
+---
+
+## 🩺 Diagnostic Engine (`diagnostics`)
+
+The bridge only records what the camera saw. `DiagnosticEngine` decides what it means, using rules that are written into every diagnosis's evidence:
+
+1. Only detections of the plant's own species at or above `min_confidence` (default 35%) count. Other species are ignored and noted.
+2. A condition seen in one observation is only **suspected**. One image is never enough to confirm a disease.
+3. It becomes **confirmed** when it is seen at `confirm_confidence` (default 60%) or higher both now and in at least one of the last `lookback` (default 3) earlier observations.
+4. Healthy leaves in the same image, and earlier observations that did not show the condition, are recorded as contradicting evidence.
+
+| Plant status | Meaning |
+|---|---|
+| `diseased` | At least one confirmed condition |
+| `suspected_disease` | At least one suspected condition |
+| `healthy` | Only healthy leaves of the plant's species |
+| `needs_reinspection` | No usable leaves in the image |
+
 
 ---
 
@@ -105,5 +137,5 @@ print("Logged Diagnoses:", [d.possible_condition for d in result["diagnoses"]])
 
 Both test suites run independently and verify full data persistence across sessions:
 ```bash
-python3 -m unittest discover dossier/tests && python3 -m unittest discover vision/tests
+python3 -m unittest discover dossier/tests && python3 -m unittest discover diagnostics/tests && python3 -m unittest discover vision/tests
 ```

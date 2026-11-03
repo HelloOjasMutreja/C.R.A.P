@@ -77,6 +77,7 @@ class PlantStore:
                 sensor_readings=item.get("sensor_readings", {}),
                 source=item.get("source", "unknown"),
                 quality=item.get("quality"),
+                detections=item.get("detections", []),
             )
             for item in data.get("observations", [])
         ]
@@ -90,6 +91,7 @@ class PlantStore:
                 contradicting_evidence=item.get("contradicting_evidence", []),
                 confidence=item.get("confidence"),
                 status=item.get("status", "suspected"),
+                observation_ids=item.get("observation_ids", []),
             )
             for item in data.get("diagnoses", [])
         ]

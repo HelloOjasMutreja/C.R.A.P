@@ -30,6 +30,21 @@ class DossierService:
     def list_plants(self):
         return list(self.store.load_plants().values())
 
+    def update_plant(self, plant_id, species=None, current_status=None):
+        plant = self.get_plant(plant_id)
+
+        if species is not None:
+            plant.species = species
+
+        if current_status is not None:
+            plant.current_status = current_status
+
+        self.store.save_plants(self.store.load_plants() | {
+            plant.plant_id: plant
+        })
+
+        return plant
+
     def submit_observation(
         self,
         plant_id,
@@ -38,6 +53,7 @@ class DossierService:
         sensor_readings=None,
         source="unknown",
         quality=None,
+        detections=None,
     ):
         plant = self.get_plant(plant_id)
 
@@ -49,6 +65,7 @@ class DossierService:
             sensor_readings=sensor_readings or {},
             source=source,
             quality=quality,
+            detections=detections or [],
         )
 
         plant.observations.append(observation)
@@ -66,6 +83,7 @@ class DossierService:
         contradicting_evidence=None,
         confidence=None,
         status="suspected",
+        observation_ids=None,
     ):
         plant = self.get_plant(plant_id)
 
@@ -77,6 +95,7 @@ class DossierService:
             contradicting_evidence=contradicting_evidence or [],
             confidence=confidence,
             status=status,
+            observation_ids=observation_ids or [],
         )
 
         plant.diagnoses.append(diagnosis)

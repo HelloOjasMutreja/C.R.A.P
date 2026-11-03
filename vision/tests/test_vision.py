@@ -3,8 +3,9 @@ import unittest
 from pathlib import Path
 import numpy as np
 
+from diagnostics import DiagnosticEngine
 from dossier import DossierService, PlantStore
-from vision import PlantDocDetector, DossierPerceptionBridge, DEFAULT_WEIGHTS_PATH
+from vision import PlantDocDetector, DossierPerceptionBridge, DetectionResult, DEFAULT_WEIGHTS_PATH
 
 
 class TestVision(unittest.TestCase):
@@ -67,26 +68,91 @@ class TestVision(unittest.TestCase):
         self.assertEqual(plant.plant_id, "PLANT_TOMATO_01")
         self.assertEqual(plant.location, "Greenhouse_Row_3")
         self.assertEqual(plant.species, "Tomato")
-        self.assertIn(plant.current_status, ["healthy", "diseased"])
 
-        # Check Observation
+        # The bridge records evidence only; diagnosing is the engine's job.
+        self.assertEqual(plant.current_status, "unassessed")
+        self.assertEqual(plant.diagnoses, [])
+
+        # Check Observation carries the raw detections
         self.assertEqual(len(plant.observations), 1)
         obs = plant.observations[0]
         self.assertEqual(obs.source, "yolo_plantdoc_pipeline")
-        self.assertGreater(len(obs.visual_symptoms), 0)
-
-        # Check Diagnoses
-        self.assertGreater(len(plant.diagnoses), 0)
-        diag = plant.diagnoses[0]
-        self.assertIsNotNone(diag.confidence)
-        self.assertGreater(len(diag.supporting_evidence), 0)
+        self.assertEqual(len(obs.detections), len(result["detections"]))
+        self.assertEqual(obs.detections[0]["species"], "Tomato")
+        self.assertEqual(len(obs.detections[0]["bbox"]), 4)
 
         # Verify persistence across store reload
         reloaded_service = DossierService(store=PlantStore(file_path=self.store_file))
         reloaded_plant = reloaded_service.get_plant("PLANT_TOMATO_01")
         self.assertEqual(len(reloaded_plant.observations), 1)
-        self.assertEqual(len(reloaded_plant.diagnoses), len(plant.diagnoses))
-        self.assertEqual(reloaded_plant.current_status, plant.current_status)
+        self.assertEqual(reloaded_plant.observations[0].detections, obs.detections)
+
+    def test_bridge_and_engine_on_sample_image(self):
+        bridge = DossierPerceptionBridge(service=self.service)
+        engine = DiagnosticEngine(service=self.service)
+
+        bridge.process_image("PLANT_TOMATO_01", self.sample_image, conf_threshold=0.25)
+        result = engine.evaluate("PLANT_TOMATO_01")
+
+        # The sample image contains only healthy tomato leaves.
+        self.assertEqual(result.plant_status, "healthy")
+        self.assertEqual(result.diagnoses, [])
+
+
+class FakeDetector:
+    """Stands in for YOLO so the diseased path can be tested without a diseased image."""
+
+    def __init__(self, detections):
+        self.detections = detections
+
+    def predict(self, source, conf=0.25, iou=0.45):
+        return self.detections
+
+    def summarize(self, detections):
+        return PlantDocDetector.summarize(detections)
+
+
+class TestBridgeWithFakeDetector(unittest.TestCase):
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        store_file = Path(self.temp_dir.name) / "plants.json"
+        self.service = DossierService(store=PlantStore(file_path=store_file))
+        self.engine = DiagnosticEngine(service=self.service)
+        blight = DetectionResult(
+            class_id=18,
+            raw_class_name="Tomato Early blight leaf",
+            species="Tomato",
+            condition="Early Blight",
+            is_healthy=False,
+            confidence=0.83,
+            bbox=(10, 20, 110, 120),
+        )
+        self.bridge = DossierPerceptionBridge(
+            service=self.service,
+            detector=FakeDetector([blight]),
+        )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_diseased_detection_needs_two_visits_to_confirm(self):
+        self.bridge.process_image("PLANT_TOMATO_02", "visit1.jpg")
+        first = self.engine.evaluate("PLANT_TOMATO_02")
+
+        self.assertEqual(first.plant_status, "suspected_disease")
+        self.assertEqual(first.diagnoses[0].possible_condition, "Tomato Early Blight")
+        self.assertEqual(first.diagnoses[0].status, "suspected")
+
+        self.bridge.process_image("PLANT_TOMATO_02", "visit2.jpg")
+        second = self.engine.evaluate("PLANT_TOMATO_02")
+
+        self.assertEqual(second.plant_status, "diseased")
+        self.assertEqual(second.diagnoses[0].status, "confirmed")
+
+        plant = self.service.get_plant("PLANT_TOMATO_02")
+        self.assertEqual(plant.observations[0].detections[0]["bbox"], [10, 20, 110, 120])
+        self.assertEqual(plant.observations[0].image_reference, "visit1.jpg")
 
 
 if __name__ == "__main__":
