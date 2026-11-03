@@ -3,7 +3,8 @@
 The phone opens the page, streams camera frames over a WebSocket, and gets
 YOLO detections back to draw over its own live video. Tapping "record" posts a
 full-resolution still, which is saved as a visit in the dossier and evaluated
-by the diagnostic engine.
+by the diagnostic engine, and the action manager proposes what the robot
+should do next. Actions only run when the phone asks for them.
 """
 
 import asyncio
@@ -20,8 +21,10 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from actions import ActionManager
 from diagnostics import DiagnosticEngine
 from dossier import DossierService
+from hardware import RobotError, SimulatedRobot
 from vision import DossierPerceptionBridge
 from .markers import PlantTagReader
 
@@ -49,6 +52,19 @@ def plant_summary(plant) -> dict:
             }
             for d in reversed(plant.diagnoses[-5:])
         ],
+        "actions": [action_summary(a) for a in reversed(plant.actions[-5:])],
+    }
+
+
+def action_summary(action) -> dict:
+    return {
+        "action_id": action.action_id,
+        "type": action.action_type,
+        "reason": action.reason,
+        "status": action.status,
+        "result": action.result,
+        "verification_observation_id": action.verification_observation_id,
+        "timestamp": action.timestamp.isoformat(),
     }
 
 
@@ -61,8 +77,11 @@ def create_app(
     service: Optional[DossierService] = None,
     conf: float = 0.35,
     images_dir: Optional[Path] = None,
+    robot=None,
 ) -> FastAPI:
     service = service if service is not None else DossierService()
+    robot = robot if robot is not None else SimulatedRobot()
+    actions = ActionManager(service=service, robot=robot)
     bridge = DossierPerceptionBridge(service=service, detector=detector)
     engine = DiagnosticEngine(service=service, min_confidence=conf)
     tags = PlantTagReader()
@@ -140,7 +159,10 @@ def create_app(
                 location=location,
                 conf_threshold=conf,
             )
-            evaluation = engine.evaluate(plant_id, result["observation"].observation_id)
+            observation_id = result["observation"].observation_id
+            evaluation = engine.evaluate(plant_id, observation_id)
+            verified = actions.link_verification(plant_id, observation_id)
+            proposed = actions.propose(plant_id)
             plant = service.get_plant(plant_id)
 
         return {
@@ -153,6 +175,8 @@ def create_app(
                 for d in evaluation.diagnoses
             ],
             "notes": evaluation.notes,
+            "verified_actions": [action_summary(a) for a in verified],
+            "proposed_action": action_summary(proposed) if proposed else None,
             "plant": plant_summary(plant),
         }
 
@@ -163,5 +187,37 @@ def create_app(
             raise HTTPException(status_code=400, detail="Plant id is required")
         data = await request.body()
         return await asyncio.to_thread(record, plant_id, location, data)
+
+    def change_action(plant_id: str, action_id: str, change) -> dict:
+        with lock:
+            try:
+                action = change(plant_id, action_id)
+            except ValueError as err:
+                raise HTTPException(status_code=409, detail=str(err))
+            return {"action": action_summary(action), "plant": plant_summary(service.get_plant(plant_id))}
+
+    @app.post("/api/plants/{plant_id}/actions/{action_id}/execute")
+    async def execute_action(plant_id: str, action_id: str):
+        return await asyncio.to_thread(change_action, plant_id, action_id, actions.execute)
+
+    @app.post("/api/plants/{plant_id}/actions/{action_id}/approve")
+    def approve_action(plant_id: str, action_id: str):
+        return change_action(plant_id, action_id, actions.approve)
+
+    @app.post("/api/plants/{plant_id}/actions/{action_id}/reject")
+    def reject_action(plant_id: str, action_id: str):
+        return change_action(plant_id, action_id, actions.reject)
+
+    @app.get("/api/robot")
+    def robot_status():
+        return robot.status()
+
+    # Emergency stop skips the lock so it is never stuck behind other work.
+    @app.post("/api/robot/stop")
+    def robot_stop():
+        try:
+            return robot.stop()
+        except RobotError as err:
+            raise HTTPException(status_code=502, detail=str(err))
 
     return app

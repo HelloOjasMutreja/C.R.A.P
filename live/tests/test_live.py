@@ -7,6 +7,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from dossier import DossierService, PlantStore
+from hardware import SimulatedRobot
 from live import PlantTagReader, create_app, plant_id_for_marker, render_marker
 from live.certs import ensure_certificate
 from vision import DetectionResult, PlantDocDetector
@@ -47,8 +48,9 @@ class TestLiveServer(unittest.TestCase):
         self.service = DossierService(store=PlantStore(file_path=root / "plants.json"))
         self.detector = FakeDetector()
         self.images_dir = root / "images"
+        self.robot = SimulatedRobot()
         self.client = TestClient(
-            create_app(self.detector, service=self.service, images_dir=self.images_dir)
+            create_app(self.detector, service=self.service, images_dir=self.images_dir, robot=self.robot)
         )
 
     def tearDown(self):
@@ -134,6 +136,71 @@ class TestLiveServer(unittest.TestCase):
         self.assertEqual(result["status"], "diseased")
         self.assertEqual(result["new_diagnoses"][0]["status"], "confirmed")
         self.assertEqual(result["plant"]["visits"], 2)
+
+    def post_visit(self, plant_id="PLANT_001"):
+        return self.client.post(
+            f"/api/plants/{plant_id}/visits",
+            content=jpeg(blank_frame()),
+            headers={"Content-Type": "image/jpeg"},
+        ).json()
+
+    def act(self, action_id, verb, plant_id="PLANT_001"):
+        return self.client.post(f"/api/plants/{plant_id}/actions/{action_id}/{verb}")
+
+    def test_visit_proposes_action_without_moving_robot(self):
+        result = self.post_visit()
+
+        action = result["proposed_action"]
+        self.assertEqual(action["type"], "inspect_closer")
+        self.assertEqual(action["status"], "proposed")
+        self.assertEqual(result["plant"]["actions"][0]["action_id"], action["action_id"])
+        self.assertEqual(self.robot.log, [])
+
+    def test_full_action_loop(self):
+        first = self.post_visit()
+        inspect_id = first["proposed_action"]["action_id"]
+
+        ran = self.act(inspect_id, "execute")
+        self.assertEqual(ran.status_code, 200)
+        self.assertEqual(ran.json()["action"]["status"], "completed")
+        self.assertEqual(self.robot.log, [("arm", "inspect")])
+
+        # The closer look is the second visit: it verifies and confirms.
+        second = self.post_visit()
+        self.assertEqual(second["status"], "diseased")
+        self.assertEqual(second["verified_actions"][0]["action_id"], inspect_id)
+        flag = second["proposed_action"]
+        self.assertEqual(flag["type"], "flag_plant")
+        self.assertEqual(flag["status"], "awaiting_approval")
+
+        blocked = self.act(flag["action_id"], "execute")
+        self.assertEqual(blocked.status_code, 409)
+        self.assertEqual(self.robot.log, [("arm", "inspect")])
+
+        self.assertEqual(self.act(flag["action_id"], "approve").status_code, 200)
+        done = self.act(flag["action_id"], "execute").json()
+        self.assertEqual(done["action"]["status"], "completed")
+        self.assertEqual(self.robot.log[-2:], [("arm", "flag"), ("arm", "home")])
+
+    def test_reject_action(self):
+        action_id = self.post_visit()["proposed_action"]["action_id"]
+
+        response = self.act(action_id, "reject")
+
+        self.assertEqual(response.json()["action"]["status"], "rejected")
+        self.assertEqual(self.act(action_id, "execute").status_code, 409)
+
+    def test_unknown_action_is_409(self):
+        self.post_visit()
+        self.assertEqual(self.act("ACT_missing", "execute").status_code, 409)
+
+    def test_robot_status_and_stop(self):
+        status = self.client.get("/api/robot").json()
+        self.assertTrue(status["simulated"])
+
+        response = self.client.post("/api/robot/stop")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.robot.log, [("drive", "stop", 0)])
 
     def test_record_rejects_non_image(self):
         response = self.client.post("/api/plants/PLANT_001/visits", content=b"nope")

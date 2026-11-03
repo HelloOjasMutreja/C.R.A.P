@@ -43,7 +43,23 @@ const STATUS_LABEL = {
   needs_reinspection: "Re-inspect",
   suspected: "Suspected",
   confirmed: "Confirmed",
+  proposed: "Proposed",
+  awaiting_approval: "Needs approval",
+  approved: "Approved",
+  completed: "Done",
+  failed: "Failed",
+  rejected: "Rejected",
+  superseded: "Replaced",
 };
+
+const ACTION_LABEL = {
+  inspect_closer: "Inspect closer",
+  flag_plant: "Flag plant for treatment",
+  reposition_and_retry: "Reposition and retry",
+  move_on: "Move on to next plant",
+};
+
+const OPEN_ACTION = ["proposed", "awaiting_approval", "approved"];
 
 function statusTag(status) {
   return `<span class="tag ${escapeHtml(status)}">${escapeHtml(STATUS_LABEL[status] || status)}</span>`;
@@ -381,8 +397,55 @@ function renderSheet(newConditions = []) {
       ${statusTag(p.status)}
     </div>
     <div class="rec-meta">${escapeHtml(p.location)} · ${p.visits} visit${p.visits === 1 ? "" : "s"} · last ${timeAgo(p.last_visit)}</div>
+    ${actionCard(p.actions || [])}
     ${diagnoses || `<div class="empty" style="margin-top:12px">No diagnoses yet.</div>`}`;
 }
+
+function actionCard(actions) {
+  const open = actions.find((a) => OPEN_ACTION.includes(a.status));
+  const action = open || actions[0];
+  if (!action) return "";
+
+  let buttons = "";
+  if (action.status === "awaiting_approval") {
+    buttons = `
+      <button type="button" class="btn-approve" data-act="approve" data-id="${escapeHtml(action.action_id)}">Approve</button>
+      <button type="button" class="btn-reject" data-act="reject" data-id="${escapeHtml(action.action_id)}">Reject</button>`;
+  } else if (action.status === "proposed" || action.status === "approved") {
+    buttons = `
+      <button type="button" class="btn-run" data-act="execute" data-id="${escapeHtml(action.action_id)}">Run on robot</button>
+      <button type="button" class="btn-reject" data-act="reject" data-id="${escapeHtml(action.action_id)}">Skip</button>`;
+  }
+
+  return `
+    <div class="action-card">
+      <div class="label">${open ? "Next action" : "Last action"}</div>
+      <div class="title"><span>${escapeHtml(ACTION_LABEL[action.type] || action.type)}</span>${statusTag(action.status)}</div>
+      <div class="why">${escapeHtml(action.reason)}</div>
+      ${action.result ? `<div class="result">${escapeHtml(action.result)}</div>` : ""}
+      ${buttons ? `<div class="action-buttons">${buttons}</div>` : ""}
+    </div>`;
+}
+
+$("sheetBody").addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-act]");
+  if (!button || !state.plantId) return;
+  button.disabled = true;
+
+  const url = `/api/plants/${encodeURIComponent(state.plantId)}/actions/${encodeURIComponent(button.dataset.id)}/${button.dataset.act}`;
+  try {
+    const res = await fetch(url, { method: "POST" });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || `server said ${res.status}`);
+    state.plant = body.plant;
+    renderSheet();
+    const a = body.action;
+    toast(`${escapeHtml(ACTION_LABEL[a.type] || a.type)} · <b>${escapeHtml(STATUS_LABEL[a.status] || a.status)}</b>${a.result ? `<br>${escapeHtml(a.result)}` : ""}`);
+  } catch (err) {
+    toast(`⚠️ ${escapeHtml(err.message || err)}`);
+    button.disabled = false;
+  }
+});
 
 $("sheetHandle").addEventListener("click", () => $("sheet").classList.toggle("collapsed"));
 
@@ -421,7 +484,10 @@ async function recordVisit() {
     const found = result.new_diagnoses.length
       ? result.new_diagnoses.map((d) => `${escapeHtml(d.condition)} · <b>${escapeHtml(STATUS_LABEL[d.status] || d.status)}</b>`).join("<br>")
       : `Status: <b>${escapeHtml(STATUS_LABEL[result.status] || result.status)}</b>`;
-    toast(`✅ Visit recorded for ${escapeHtml(result.plant.plant_id)}<br>${found}`);
+    const next = result.proposed_action
+      ? `<br>Next: <b>${escapeHtml(ACTION_LABEL[result.proposed_action.type] || result.proposed_action.type)}</b>`
+      : "";
+    toast(`✅ Visit recorded for ${escapeHtml(result.plant.plant_id)}<br>${found}${next}`, 4200);
   } catch (err) {
     toast(`⚠️ Could not record: ${escapeHtml(err.message || err)}`);
   } finally {
@@ -487,6 +553,41 @@ $("newPlant").addEventListener("submit", (e) => {
   $("newPlantId").value = "";
   closePicker();
 });
+
+// ---------- robot ----------
+
+async function refreshRobot() {
+  const pill = $("robotMode");
+  try {
+    const status = await fetch("/api/robot").then((r) => r.json());
+    if (status.simulated) {
+      pill.textContent = "ROBOT · SIM";
+      pill.className = "pill sim";
+    } else if (status.connected) {
+      pill.textContent = "ROBOT · OK";
+      pill.className = "pill ok";
+    } else {
+      pill.textContent = "ROBOT · OFFLINE";
+      pill.className = "pill off";
+    }
+  } catch (_) {
+    pill.textContent = "ROBOT · ?";
+    pill.className = "pill off";
+  }
+}
+
+$("stopBtn").addEventListener("click", async () => {
+  try {
+    const res = await fetch("/api/robot/stop", { method: "POST" });
+    if (!res.ok) throw new Error((await res.json()).detail || res.status);
+    toast("🛑 Stop sent to robot", 1800);
+  } catch (err) {
+    toast(`⚠️ Stop failed: ${escapeHtml(err.message || err)}`);
+  }
+});
+
+refreshRobot();
+setInterval(refreshRobot, 5000);
 
 $("startBtn").addEventListener("click", startCamera);
 renderSheet();

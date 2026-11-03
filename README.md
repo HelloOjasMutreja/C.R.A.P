@@ -25,6 +25,15 @@ C.R.A.P/
 │   ├── engine.py                # DiagnosticEngine (observations → diagnoses + plant status)
 │   └── tests/test_diagnostics.py
 │
+├── actions/                     # 🤖 Action Manager (diagnosis → recorded robot action)
+│   ├── manager.py               # propose / approve / execute / verify
+│   └── tests/test_actions.py
+│
+├── hardware/                    # 🔌 Robot command interface
+│   ├── robot.py                 # SimulatedRobot + HttpRobot (ESP32 over Wi-Fi)
+│   ├── esp32_reference/         # Untested starting-point firmware for the ESP32s
+│   └── tests/test_hardware.py
+│
 ├── live/                        # 📱 Live phone camera feed (laptop runs YOLO)
 │   ├── server.py                # FastAPI app: live detection WebSocket + record-visit API
 │   ├── markers.py               # ArUco plant tags (marker 7 → PLANT_007)
@@ -60,6 +69,8 @@ python3 -m unittest discover dossier/tests
 python3 -m unittest discover diagnostics/tests
 python3 -m unittest discover vision/tests
 python3 -m unittest discover live/tests
+python3 -m unittest discover actions/tests
+python3 -m unittest discover hardware/tests
 ```
 
 ---
@@ -149,6 +160,39 @@ Live frames are never saved; only tapped visits go into the dossier (photos are 
 
 ---
 
+## 🤖 Action Manager (`actions`) and Robot Interface (`hardware`)
+
+After each recorded visit, the action manager proposes **one** next action for the plant and records why. Nothing moves until someone taps **Run on robot** on the phone.
+
+| Plant status | Proposed action | Robot commands | Notes |
+|---|---|---|---|
+| `suspected_disease` | Inspect closer | arm → `inspect` | The next recorded visit verifies it, and can confirm the disease |
+| `diseased` | Flag plant for treatment | arm → `flag`, then `home` | **Needs approval** before it can run |
+| `needs_reinspection` | Reposition and retry | drive `back` 300 ms | Verified by the next visit |
+| `healthy` | Move on to next plant | arm → `home`, drive `forward` 1000 ms | |
+
+- Each plant keeps one open action; a new status replaces (supersedes) an old open action.
+- If any robot command fails, the robot is told to stop and the action is marked `failed` with what had already run.
+- The **STOP** button on the phone always sends a stop, even while other work is running.
+
+### Robot command contract (for the ESP32 teams)
+
+```
+GET /drive?cmd=forward|back|left|right|stop&ms=500   → {"ok":true}
+GET /arm?pose=home|inspect|flag                       → {"ok":true,"pose":"inspect"}
+GET /status                                           → {"ok":true,...}
+```
+
+Moves are limited to 3000 ms and stop by themselves. `stop` always wins. A starting-point sketch for both boards is in `hardware/esp32_reference/` (untested; the pins and servo angles are placeholders).
+
+By default the live server uses a **simulated robot**, so everything can be tested now. To drive the real ESP32s:
+
+```bash
+python -m live --drive-url http://192.168.4.10 --arm-url http://192.168.4.11
+```
+
+---
+
 ## 🏷️ Supported Plant & Disease Classes (29 Classes)
 
 - **Apple**: Apple Scab, Apple Rust, Healthy Leaf
@@ -171,5 +215,5 @@ Live frames are never saved; only tapped visits go into the dossier (photos are 
 
 Both test suites run independently and verify full data persistence across sessions:
 ```bash
-python3 -m unittest discover dossier/tests && python3 -m unittest discover diagnostics/tests && python3 -m unittest discover vision/tests && python3 -m unittest discover live/tests
+python3 -m unittest discover dossier/tests && python3 -m unittest discover diagnostics/tests && python3 -m unittest discover vision/tests && python3 -m unittest discover live/tests && python3 -m unittest discover actions/tests && python3 -m unittest discover hardware/tests
 ```

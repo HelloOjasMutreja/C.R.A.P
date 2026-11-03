@@ -133,6 +133,47 @@ class DossierService:
 
         return action
 
+    def get_action(self, plant_id, action_id):
+        plant = self.get_plant(plant_id)
+
+        for action in plant.actions:
+            if action.action_id == action_id:
+                return action
+
+        raise ValueError(f"Action not found: {action_id}")
+
+    def update_action(
+        self,
+        plant_id,
+        action_id,
+        status=None,
+        result=None,
+        verification_observation_id=None,
+    ):
+        plant = self.get_plant(plant_id)
+        action = next(
+            (a for a in plant.actions if a.action_id == action_id),
+            None,
+        )
+
+        if action is None:
+            raise ValueError(f"Action not found: {action_id}")
+
+        if status is not None:
+            action.status = status
+
+        if result is not None:
+            action.result = result
+
+        if verification_observation_id is not None:
+            action.verification_observation_id = verification_observation_id
+
+        self.store.save_plants(self.store.load_plants() | {
+            plant.plant_id: plant
+        })
+
+        return action
+
     @staticmethod
     def _new_id(prefix):
         from uuid import uuid4

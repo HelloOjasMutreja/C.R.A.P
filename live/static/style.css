@@ -115,6 +115,56 @@ body.live .dot { background: var(--disease); animation: pulse 1.4s infinite; }
 #recordBtn:active span { transform: scale(0.85); }
 #recordBtn.busy span { border-radius: 10px; transform: scale(0.6); animation: pulse 0.8s infinite; }
 
+/* Stop sits above the area the record panel can cover, so it is always reachable. */
+#stopBtn {
+  position: absolute;
+  z-index: 5;
+  right: 12px;
+  top: calc(122px + var(--safe-top));
+  width: 58px; height: 58px;
+  border-radius: 14px;
+  background: #b3261e;
+  border: 3px solid #ffd6d2;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+#stopBtn:active { transform: scale(0.94); }
+
+#robotMode {
+  position: absolute;
+  z-index: 5;
+  right: 12px;
+  top: calc(186px + var(--safe-top));
+  font-size: 10px;
+  padding: 4px 7px;
+}
+#robotMode.ok { box-shadow: inset 0 0 0 1.5px var(--healthy); }
+#robotMode.sim { box-shadow: inset 0 0 0 1.5px var(--info); }
+#robotMode.off { box-shadow: inset 0 0 0 1.5px var(--disease); }
+
+.action-card {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(79, 209, 255, 0.06);
+}
+.action-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.action-card .title { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; margin: 2px 0 4px; }
+.action-card .why { font-size: 12.5px; color: #c9d2ca; line-height: 1.45; }
+.action-card .result { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.action-buttons { display: flex; gap: 8px; margin-top: 9px; }
+.action-buttons button { flex: 1; padding: 9px; border-radius: 10px; font-weight: 800; font-size: 13.5px; }
+.btn-run { background: var(--tag); color: #001a24; }
+.btn-approve { background: var(--suspect); color: #1a1200; }
+.btn-reject { background: #2a332c; }
+.tag.proposed, .tag.approved { background: var(--tag); color: #001a24; }
+.tag.awaiting_approval { background: var(--suspect); color: #1a1200; }
+.tag.completed { background: var(--healthy); }
+.tag.failed { background: var(--disease); }
+
 #recordHint {
   position: absolute;
   left: 50%;
@@ -177,8 +227,11 @@ body.live .dot { background: var(--disease); animation: pulse 1.4s infinite; }
 #toast {
   position: absolute;
   left: 50%;
-  top: calc(130px + var(--safe-top));
+  top: calc(122px + var(--safe-top));
   transform: translate(-50%, -10px);
+  z-index: 6;
+  max-width: calc(100vw - 100px);
+  margin-left: -38px;
   background: rgba(0, 0, 0, 0.85);
   border: 1px solid var(--line);
   padding: 10px 14px;
