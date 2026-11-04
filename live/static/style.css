@@ -210,6 +210,7 @@ body.live .dot { background: var(--disease); animation: pulse 1.4s infinite; }
 .tag.suspected_disease, .tag.suspected { background: var(--suspect); color: #1a1200; }
 .tag.diseased, .tag.confirmed { background: var(--disease); }
 .tag.needs_reinspection { background: var(--info); color: #001522; }
+.tag.uncertain { background: #b48ce6; color: #1a0a2e; }
 
 .diag { border-top: 1px solid var(--line); padding: 11px 0; }
 .diag:first-of-type { margin-top: 12px; }

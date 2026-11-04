@@ -31,9 +31,10 @@ class FakeDetector:
 
     def predict(self, source, conf=0.25, iou=0.45):
         self.calls += 1
+        shift = self.calls * 40  # each call looks like a different camera view
         return [
-            DetectionResult(18, "Tomato Early blight leaf", "Tomato", "Early Blight", False, 0.82, (10, 10, 60, 60)),
-            DetectionResult(20, "Tomato leaf", "Tomato", "Healthy", True, 0.9, (70, 20, 120, 80)),
+            DetectionResult(18, "Tomato Early blight leaf", "Tomato", "Early Blight", False, 0.82, (10 + shift, 10, 60 + shift, 60)),
+            DetectionResult(20, "Tomato leaf", "Tomato", "Healthy", True, 0.9, (70 + shift, 20, 120 + shift, 80)),
         ]
 
     def summarize(self, detections):
@@ -73,7 +74,7 @@ class TestLiveServer(unittest.TestCase):
         self.assertEqual((result["width"], result["height"]), (320, 240))
         self.assertEqual(len(result["detections"]), 2)
         self.assertEqual(result["detections"][0]["condition"], "Early Blight")
-        self.assertEqual(result["detections"][0]["bbox"], [10, 10, 60, 60])
+        self.assertEqual(result["detections"][0]["bbox"], [50, 10, 100, 60])
         self.assertIsNone(result["tag"])
 
     def test_live_frames_do_not_touch_the_dossier(self):
@@ -169,18 +170,29 @@ class TestLiveServer(unittest.TestCase):
         second = self.post_visit()
         self.assertEqual(second["status"], "diseased")
         self.assertEqual(second["verified_actions"][0]["action_id"], inspect_id)
-        flag = second["proposed_action"]
-        self.assertEqual(flag["type"], "flag_plant")
-        self.assertEqual(flag["status"], "awaiting_approval")
+        spray = second["proposed_action"]
+        self.assertEqual(spray["type"], "spray_plant")
+        self.assertEqual(spray["status"], "awaiting_approval")
 
-        blocked = self.act(flag["action_id"], "execute")
+        blocked = self.act(spray["action_id"], "execute")
         self.assertEqual(blocked.status_code, 409)
         self.assertEqual(self.robot.log, [("arm", "inspect")])
 
-        self.assertEqual(self.act(flag["action_id"], "approve").status_code, 200)
-        done = self.act(flag["action_id"], "execute").json()
+        self.assertEqual(self.act(spray["action_id"], "approve").status_code, 200)
+        done = self.act(spray["action_id"], "execute").json()
         self.assertEqual(done["action"]["status"], "completed")
-        self.assertEqual(self.robot.log[-2:], [("arm", "flag"), ("arm", "home")])
+        self.assertEqual(self.robot.log[-3:], [("arm", "spray"), ("spray", 500), ("arm", "home")])
+
+    def test_visit_stores_sensor_reading_as_evidence(self):
+        self.robot.sensor_reading = {"temperature_c": 29.5, "humidity_rh": 82.0}
+
+        result = self.post_visit()
+
+        self.assertEqual(result["plant"]["sensors"]["humidity_rh"], 82.0)
+        saved = self.service.get_plant("PLANT_001").observations[0]
+        self.assertEqual(saved.sensor_readings["temperature_c"], 29.5)
+        evidence = result["plant"]["diagnoses"][0]["supporting"]
+        self.assertTrue(any("82%" in e for e in evidence))
 
     def test_reject_action(self):
         action_id = self.post_visit()["proposed_action"]["action_id"]

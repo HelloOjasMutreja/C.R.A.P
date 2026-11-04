@@ -39,6 +39,7 @@ class Action:
     status: str = "proposed"
     result: Optional[str] = None
     verification_observation_id: Optional[str] = None
+    completed_at: Optional[datetime] = None
 
 
 @dataclass

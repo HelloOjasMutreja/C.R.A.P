@@ -17,3 +17,6 @@ dossier/data/plants.json
 live/certs/
 dossier/data/images/
 markers/
+
+# Local Python environment
+.venv/

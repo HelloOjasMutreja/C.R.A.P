@@ -41,6 +41,7 @@ def plant_summary(plant) -> dict:
         "status": plant.current_status,
         "visits": len(plant.observations),
         "last_visit": last,
+        "sensors": plant.observations[-1].sensor_readings if plant.observations else {},
         "diagnoses": [
             {
                 "condition": d.possible_condition,
@@ -157,6 +158,7 @@ def create_app(
                 plant_id=plant_id,
                 image_source=image_path,
                 location=location,
+                sensor_readings=robot.sensors(),
                 conf_threshold=conf,
             )
             observation_id = result["observation"].observation_id

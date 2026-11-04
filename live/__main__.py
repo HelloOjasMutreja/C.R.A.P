@@ -22,23 +22,27 @@ def main():
         action="store_true",
         help="serve plain HTTP; the camera then only works on this laptop at http://localhost",
     )
-    parser.add_argument("--drive-url", default=None, help="drive ESP32, e.g. http://192.168.4.10")
-    parser.add_argument("--arm-url", default=None, help="arm ESP32, e.g. http://192.168.4.11")
+    parser.add_argument("--bt-port", default=None, help="COM port of the paired ESP32, e.g. COM5")
+    parser.add_argument(
+        "--has-arm",
+        action="store_true",
+        help="send arm and spray commands; only use once the firmware supports them",
+    )
     args = parser.parse_args()
 
     import uvicorn
 
-    from hardware import HttpRobot, SimulatedRobot
+    from hardware import BluetoothRobot, SimulatedRobot
     from vision import PlantDocDetector
     from .certs import ensure_certificate, lan_addresses
     from .server import create_app
 
-    if args.drive_url or args.arm_url:
-        robot = HttpRobot(drive_url=args.drive_url, arm_url=args.arm_url)
-        print(f"Robot: drive={args.drive_url or 'none'} arm={args.arm_url or 'none'}")
+    if args.bt_port:
+        robot = BluetoothRobot(args.bt_port, has_arm=args.has_arm)
+        print(f"Robot: Bluetooth on {args.bt_port}, arm commands {'on' if args.has_arm else 'off'}")
     else:
         robot = SimulatedRobot()
-        print("Robot: simulated (pass --drive-url / --arm-url to use the ESP32s)")
+        print("Robot: simulated (pass --bt-port to use the ESP32)")
 
     print("Loading YOLO model...")
     app = create_app(PlantDocDetector(args.weights), conf=args.conf, robot=robot)

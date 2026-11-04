@@ -41,6 +41,7 @@ const STATUS_LABEL = {
   suspected_disease: "Suspected",
   diseased: "Diseased",
   needs_reinspection: "Re-inspect",
+  uncertain: "Conflicting",
   suspected: "Suspected",
   confirmed: "Confirmed",
   proposed: "Proposed",
@@ -54,9 +55,10 @@ const STATUS_LABEL = {
 
 const ACTION_LABEL = {
   inspect_closer: "Inspect closer",
-  flag_plant: "Flag plant for treatment",
+  spray_plant: "Spray plant",
   reposition_and_retry: "Reposition and retry",
   move_on: "Move on to next plant",
+  request_review: "Ask a person to review",
 };
 
 const OPEN_ACTION = ["proposed", "awaiting_approval", "approved"];
@@ -397,8 +399,14 @@ function renderSheet(newConditions = []) {
       ${statusTag(p.status)}
     </div>
     <div class="rec-meta">${escapeHtml(p.location)} · ${p.visits} visit${p.visits === 1 ? "" : "s"} · last ${timeAgo(p.last_visit)}</div>
+    ${sensorLine(p.sensors)}
     ${actionCard(p.actions || [])}
     ${diagnoses || `<div class="empty" style="margin-top:12px">No diagnoses yet.</div>`}`;
+}
+
+function sensorLine(sensors) {
+  if (sensors?.temperature_c == null || sensors?.humidity_rh == null) return "";
+  return `<div class="rec-meta">Last visit air: ${Number(sensors.temperature_c).toFixed(1)} °C · ${Math.round(sensors.humidity_rh)}% humidity</div>`;
 }
 
 function actionCard(actions) {
@@ -413,7 +421,7 @@ function actionCard(actions) {
       <button type="button" class="btn-reject" data-act="reject" data-id="${escapeHtml(action.action_id)}">Reject</button>`;
   } else if (action.status === "proposed" || action.status === "approved") {
     buttons = `
-      <button type="button" class="btn-run" data-act="execute" data-id="${escapeHtml(action.action_id)}">Run on robot</button>
+      <button type="button" class="btn-run" data-act="execute" data-id="${escapeHtml(action.action_id)}">${action.type === "request_review" ? "Mark reviewed" : "Run on robot"}</button>
       <button type="button" class="btn-reject" data-act="reject" data-id="${escapeHtml(action.action_id)}">Skip</button>`;
   }
 
@@ -487,7 +495,8 @@ async function recordVisit() {
     const next = result.proposed_action
       ? `<br>Next: <b>${escapeHtml(ACTION_LABEL[result.proposed_action.type] || result.proposed_action.type)}</b>`
       : "";
-    toast(`✅ Visit recorded for ${escapeHtml(result.plant.plant_id)}<br>${found}${next}`, 4200);
+    const notes = result.notes.length ? `<br>${result.notes.map(escapeHtml).join("<br>")}` : "";
+    toast(`✅ Visit recorded for ${escapeHtml(result.plant.plant_id)}<br>${found}${next}${notes}`, notes ? 6500 : 4200);
   } catch (err) {
     toast(`⚠️ Could not record: ${escapeHtml(err.message || err)}`);
   } finally {

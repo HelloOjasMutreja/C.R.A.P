@@ -156,6 +156,44 @@ class TestDiagnosticEngine(unittest.TestCase):
 
         self.assertEqual(result.diagnoses[0].possible_condition, "Corn Common Rust")
 
+    def observe_humidity(self, humidity, *detections):
+        return self.service.submit_observation(
+            plant_id="PLANT001",
+            sensor_readings={"temperature_c": 28.0, "humidity_rh": humidity},
+            detections=list(detections),
+        )
+
+    def test_high_humidity_supports_but_does_not_confirm(self):
+        self.observe_humidity(85.0, detection(condition="Late Blight", confidence=0.95))
+
+        result = self.engine.evaluate("PLANT001")
+
+        diagnosis = result.diagnoses[0]
+        self.assertEqual(diagnosis.status, "suspected")
+        self.assertTrue(any("85%" in e for e in diagnosis.supporting_evidence))
+
+    def test_low_humidity_adds_nothing(self):
+        self.observe_humidity(40.0, detection(condition="Late Blight"))
+
+        result = self.engine.evaluate("PLANT001")
+
+        self.assertFalse(any("humidity" in e for e in result.diagnoses[0].supporting_evidence))
+
+    def test_humidity_ignored_for_unrelated_conditions(self):
+        self.observe_humidity(90.0, detection(condition="Mosaic Virus"))
+
+        result = self.engine.evaluate("PLANT001")
+
+        self.assertFalse(any("humidity" in e for e in result.diagnoses[0].supporting_evidence))
+
+    def test_humidity_alone_creates_no_diagnosis(self):
+        self.observe_humidity(95.0, detection(healthy=True))
+
+        result = self.engine.evaluate("PLANT001")
+
+        self.assertEqual(result.diagnoses, [])
+        self.assertEqual(result.plant_status, "healthy")
+
     def test_reevaluating_does_not_duplicate(self):
         self.observe(detection())
 

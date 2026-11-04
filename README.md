@@ -30,8 +30,7 @@ C.R.A.P/
 │   └── tests/test_actions.py
 │
 ├── hardware/                    # 🔌 Robot command interface
-│   ├── robot.py                 # SimulatedRobot + HttpRobot (ESP32 over Wi-Fi)
-│   ├── esp32_reference/         # Untested starting-point firmware for the ESP32s
+│   ├── robot.py                 # SimulatedRobot + BluetoothRobot (one ESP32)
 │   └── tests/test_hardware.py
 │
 ├── live/                        # 📱 Live phone camera feed (laptop runs YOLO)
@@ -119,20 +118,25 @@ print("Diagnoses:", [(d.possible_condition, d.status) for d in evaluation.diagno
 
 ## 🩺 Diagnostic Engine (`diagnostics`)
 
-The bridge only records what the camera saw. `DiagnosticEngine` decides what it means, using rules that are written into every diagnosis's evidence:
+The bridge only records what the camera saw. `DiagnosticEngine` decides what it means. On real detections the model's confidence barely separates right from wrong (precision stays near 0.73 from a 35% to an 80% cutoff), so the engine relies on agreement between **different views** of a plant:
 
-1. Only detections of the plant's own species at or above `min_confidence` (default 35%) count. Other species are ignored and noted.
-2. A condition seen in one observation is only **suspected**. One image is never enough to confirm a disease.
-3. It becomes **confirmed** when it is seen at `confirm_confidence` (default 60%) or higher both now and in at least one of the last `lookback` (default 3) earlier observations.
-4. Healthy leaves in the same image, and earlier observations that did not show the condition, are recorded as contradicting evidence.
+1. Only detections of the plant's own species at or above `min_confidence` (35%) count. Other species are ignored and noted.
+2. The evidence is the last `lookback` + 1 (4) distinct views since the plant was last sprayed. Frames without leaves and repeats of the same view do not count.
+3. A view votes for a condition seen at `confirm_confidence` (60%) or higher.
+4. A condition is **confirmed** with at least two votes, a strict majority of the views, and more votes than any rival. One image is never enough.
+5. Rival diseases tied at two or more votes make the plant **uncertain**, and a person decides.
+6. Status comes from the whole window, so one healthy or blurry view does not undo a diagnosis. A disease fades as healthy views outvote it.
+7. High humidity is noted as context for humidity-favoured diseases. It never creates or confirms a diagnosis.
+
+Two recordings of the same scene count once. For a demo, move the camera or zoom in between visits; holding it still will not confirm a disease.
 
 | Plant status | Meaning |
 |---|---|
-| `diseased` | At least one confirmed condition |
-| `suspected_disease` | At least one suspected condition |
-| `healthy` | Only healthy leaves of the plant's species |
-| `needs_reinspection` | No usable leaves in the image |
-
+| `diseased` | One condition has a clear majority of views |
+| `uncertain` | Rival conditions are tied, so a person decides |
+| `suspected_disease` | Seen now, or in at least half of recent views |
+| `healthy` | Healthy leaves, and no disease in at least half of recent views |
+| `needs_reinspection` | No usable leaves, and nothing already at risk |
 
 ---
 
@@ -167,29 +171,40 @@ After each recorded visit, the action manager proposes **one** next action for t
 | Plant status | Proposed action | Robot commands | Notes |
 |---|---|---|---|
 | `suspected_disease` | Inspect closer | arm → `inspect` | The next recorded visit verifies it, and can confirm the disease |
-| `diseased` | Flag plant for treatment | arm → `flag`, then `home` | **Needs approval** before it can run |
+| `diseased` | Spray plant | arm → `spray`, spray 500 ms, arm → `home` | **Needs approval** before it can run |
 | `needs_reinspection` | Reposition and retry | drive `back` 300 ms | Verified by the next visit |
 | `healthy` | Move on to next plant | arm → `home`, drive `forward` 1000 ms | |
+| `uncertain` | Ask a person to review | None | The operator marks it reviewed |
 
 - Each plant keeps one open action; a new status replaces (supersedes) an old open action.
+- After 2 inspections or 2 retries in a row, the robot stops and asks a person.
+- After a spray, the plant is not sprayed again for 72 hours (a provisional value), and earlier sightings no longer count. If the disease is confirmed again after that, a person decides.
 - If any robot command fails, the robot is told to stop and the action is marked `failed` with what had already run.
 - The **STOP** button on the phone always sends a stop, even while other work is running.
 
-### Robot command contract (for the ESP32 teams)
+### Connecting the real robot
 
-```
-GET /drive?cmd=forward|back|left|right|stop&ms=500   → {"ok":true}
-GET /arm?pose=home|inspect|flag                       → {"ok":true,"pose":"inspect"}
-GET /status                                           → {"ok":true,...}
-```
+The robot is one ESP32 on Bluetooth Classic serial, named `UGV_ESP32`. By default the live server uses a **simulated robot**. To use the real one:
 
-Moves are limited to 3000 ms and stop by themselves. `stop` always wins. A starting-point sketch for both boards is in `hardware/esp32_reference/` (untested; the pins and servo angles are placeholders).
-
-By default the live server uses a **simulated robot**, so everything can be tested now. To drive the real ESP32s:
+1. Pair the laptop with `UGV_ESP32` in Windows Bluetooth settings.
+2. Find its COM port: `python -m serial.tools.list_ports -v`
+3. Start the server with that port:
 
 ```bash
-python -m live --drive-url http://192.168.4.10 --arm-url http://192.168.4.11
+python -m live --bt-port COM5
 ```
+
+| Command | Meaning | In firmware? |
+|---|---|---|
+| `F:1000` `B:1000` `L:500` `R:500` | Timed drive, in ms | Yes |
+| `S` | Stop | Yes |
+| `V180` | Set speed, 0 to 255 | Yes |
+| `A:HOME` `A:INSPECT` `A:SPRAY` | Move the arm to a pose | **Proposed, not yet** |
+| `P:500` | Squeeze the spray trigger for 500 ms | **Proposed, not yet** |
+
+The firmware sends no reply and silently ignores unknown commands, so "sent" does not prove the robot moved. Arm and spray steps are refused, and the action fails, until the firmware supports them. Then add `--has-arm`.
+
+Every move sent from here has a time limit. DHT22 readings arrive as `sensor_data` lines; failed or simulated readings are never stored. A valid reading is saved with each visit, and high humidity (70% or more) is added as context for humidity-favoured diseases. It never creates or confirms a diagnosis.
 
 ---
 

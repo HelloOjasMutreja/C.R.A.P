@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import Optional
 
 from dossier import DossierService
@@ -6,26 +7,34 @@ from hardware import RobotError, SimulatedRobot
 # What to do for each plant status. Every action is recorded with its reason.
 DECISIONS = {
     "suspected_disease": "inspect_closer",
-    "diseased": "flag_plant",
+    "diseased": "spray_plant",
     "needs_reinspection": "reposition_and_retry",
+    "uncertain": "request_review",
     "healthy": "move_on",
 }
 
 # The robot commands each action runs, in order.
 PLANS = {
     "inspect_closer": [("arm", "inspect")],
-    "flag_plant": [("arm", "flag"), ("arm", "home")],
+    "spray_plant": [("arm", "spray"), ("spray", 500), ("arm", "home")],
     "reposition_and_retry": [("drive", "back", 300)],
     "move_on": [("arm", "home"), ("drive", "forward", 1000)],
+    "request_review": [],
 }
 
 # Actions that touch the plant wait for a person to approve them.
-NEEDS_APPROVAL = {"flag_plant"}
+NEEDS_APPROVAL = {"spray_plant"}
 
 # Actions whose effect is checked by the next recorded visit.
 VERIFIED_BY_NEXT_VISIT = {"inspect_closer", "reposition_and_retry"}
 
 OPEN_STATUSES = ("proposed", "awaiting_approval", "approved")
+
+# The robot gives up and asks a person after this many of the same action in a row.
+MAX_REPEATS = 2
+
+# Time for a treatment to show before the plant may be judged again. Provisional.
+SPRAY_COOLDOWN = timedelta(hours=72)
 
 
 class ActionManager:
@@ -36,9 +45,10 @@ class ActionManager:
     called, so a person or the demo flow stays in control of the robot.
     """
 
-    def __init__(self, service: Optional[DossierService] = None, robot=None):
+    def __init__(self, service: Optional[DossierService] = None, robot=None, clock=datetime.now):
         self.service = service if service is not None else DossierService()
         self.robot = robot if robot is not None else SimulatedRobot()
+        self.clock = clock
 
     def propose(self, plant_id: str):
         """Record the next action for the plant's current status, or return None if there is none."""
@@ -46,6 +56,8 @@ class ActionManager:
         action_type = DECISIONS.get(plant.current_status)
         if action_type is None:
             return None
+
+        action_type, reason = self._apply_limits(plant, action_type)
 
         # Keep one open action per plant: reuse a matching one, retire the rest.
         for action in plant.actions:
@@ -63,7 +75,7 @@ class ActionManager:
         return self.service.record_action(
             plant_id=plant_id,
             action_type=action_type,
-            reason=self._reason(plant, action_type),
+            reason=reason or self._reason(plant, action_type),
             status="awaiting_approval" if action_type in NEEDS_APPROVAL else "proposed",
         )
 
@@ -92,9 +104,15 @@ class ActionManager:
         done = []
         try:
             for step in PLANS[action.action_type]:
+                # A robot without an arm is already "home"; any other arm step must fail.
+                if step == ("arm", "home") and not self.robot.has_arm:
+                    continue
                 if step[0] == "arm":
                     self.robot.arm(step[1])
                     done.append(f"arm → {step[1]}")
+                elif step[0] == "spray":
+                    self.robot.spray(step[1])
+                    done.append(f"spray {step[1]} ms")
                 else:
                     self.robot.drive(step[1], step[2])
                     done.append(f"drive {step[1]} {step[2]} ms")
@@ -111,10 +129,12 @@ class ActionManager:
                 result=f"Stopped after: {steps}. Error: {err}",
             )
 
-        result = "; ".join(done) + "."
+        result = "; ".join(done) + "." if done else "Reviewed by operator."
         if action.action_type in VERIFIED_BY_NEXT_VISIT:
             result += " Record a visit to verify."
-        return self.service.update_action(plant_id, action_id, status="completed", result=result)
+        return self.service.update_action(
+            plant_id, action_id, status="completed", result=result, completed_at=self.clock()
+        )
 
     def link_verification(self, plant_id: str, observation_id: str) -> list:
         """Attach a new observation to completed actions that were waiting for one."""
@@ -139,6 +159,36 @@ class ActionManager:
 
         return linked
 
+    def _apply_limits(self, plant, action_type: str):
+        """Stop the robot repeating itself; return the action to use and any special reason."""
+        if action_type == "spray_plant":
+            sprays = [
+                a.completed_at for a in plant.actions
+                if a.action_type == "spray_plant" and a.status == "completed" and a.completed_at
+            ]
+            if sprays:
+                last = max(sprays)
+                if self.clock() - last < SPRAY_COOLDOWN:
+                    return "move_on", (
+                        f"This plant was sprayed on {last:%d %b at %H:%M}; "
+                        "give the treatment time before judging it again."
+                    )
+                return "request_review", "The disease is still present after treatment; a person should decide what to do next."
+
+        if action_type in ("inspect_closer", "reposition_and_retry"):
+            done = [a for a in plant.actions if a.status == "completed"]
+            streak = 0
+            for action in reversed(done):
+                if action.action_type != action_type:
+                    break
+                streak += 1
+            if streak >= MAX_REPEATS:
+                return "request_review", (
+                    f"{streak} attempts in a row did not settle this plant; a person should look at it."
+                )
+
+        return action_type, None
+
     def _reason(self, plant, action_type: str) -> str:
         latest = plant.observations[-1].observation_id if plant.observations else None
         current = [d for d in plant.diagnoses if d.observation_ids and d.observation_ids[0] == latest]
@@ -148,8 +198,11 @@ class ActionManager:
 
         if action_type == "inspect_closer":
             return f"{found} is suspected from one sighting; a closer look can confirm or rule it out."
-        if action_type == "flag_plant":
-            return f"{found} is confirmed on repeat visits; mark the plant for treatment."
+        if action_type == "spray_plant":
+            return f"{found} is confirmed on repeat visits; spray the plant once approved."
         if action_type == "reposition_and_retry":
             return "No usable leaves were in view; move slightly and look again."
+        if action_type == "request_review":
+            names = " and ".join(d.possible_condition for d in current)
+            return f"The views disagree between {names}; a person should decide before any treatment."
         return "No disease seen; continue to the next plant."

@@ -149,6 +149,7 @@ class DossierService:
         status=None,
         result=None,
         verification_observation_id=None,
+        completed_at=None,
     ):
         plant = self.get_plant(plant_id)
         action = next(
@@ -167,6 +168,9 @@ class DossierService:
 
         if verification_observation_id is not None:
             action.verification_observation_id = verification_observation_id
+
+        if completed_at is not None:
+            action.completed_at = completed_at
 
         self.store.save_plants(self.store.load_plants() | {
             plant.plant_id: plant

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 import numpy as np
 
@@ -104,9 +105,12 @@ class FakeDetector:
 
     def __init__(self, detections):
         self.detections = detections
+        self.calls = 0
 
     def predict(self, source, conf=0.25, iou=0.45):
-        return self.detections
+        # Each call looks like a different camera view, as real visits do.
+        self.calls += 1
+        return [replace(d, confidence=d.confidence - 0.05 * self.calls) for d in self.detections]
 
     def summarize(self, detections):
         return PlantDocDetector.summarize(detections)

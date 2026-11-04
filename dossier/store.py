@@ -107,6 +107,10 @@ class PlantStore:
                 verification_observation_id=item.get(
                     "verification_observation_id"
                 ),
+                completed_at=(
+                    cls._parse_datetime(item["completed_at"])
+                    if item.get("completed_at") else None
+                ),
             )
             for item in data.get("actions", [])
         ]
