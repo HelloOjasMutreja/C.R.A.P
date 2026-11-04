@@ -75,6 +75,7 @@ class PlantBook(
         }
     }
 
+    @Synchronized
     fun registerPlant(plantId: String, location: String, species: String? = null): Plant {
         require(plantId !in plants) { "Plant ID already exists: $plantId" }
         val plant = Plant(plantId, location, clock(), species)
@@ -83,13 +84,17 @@ class PlantBook(
         return plant
     }
 
+    @Synchronized
     fun getPlant(plantId: String): Plant =
         plants[plantId] ?: throw IllegalArgumentException("Plant not found: $plantId")
 
+    @Synchronized
     fun hasPlant(plantId: String) = plantId in plants
 
+    @Synchronized
     fun listPlants(): List<Plant> = plants.values.toList()
 
+    @Synchronized
     fun updatePlant(plantId: String, species: String? = null, currentStatus: String? = null): Plant {
         val plant = getPlant(plantId)
         if (species != null) plant.species = species
@@ -98,6 +103,7 @@ class PlantBook(
         return plant
     }
 
+    @Synchronized
     fun submitObservation(
         plantId: String,
         imageReference: String? = null,
@@ -111,6 +117,7 @@ class PlantBook(
         return observation
     }
 
+    @Synchronized
     fun recordDiagnosis(
         plantId: String,
         possibleCondition: String,
@@ -130,6 +137,7 @@ class PlantBook(
         return diagnosis
     }
 
+    @Synchronized
     fun recordAction(plantId: String, actionType: String, reason: String, status: String): Action {
         val plant = getPlant(plantId)
         val action = Action(newId("ACT"), clock(), actionType, reason, status)
@@ -138,10 +146,12 @@ class PlantBook(
         return action
     }
 
+    @Synchronized
     fun getAction(plantId: String, actionId: String): Action =
         getPlant(plantId).actions.firstOrNull { it.actionId == actionId }
             ?: throw IllegalArgumentException("Action not found: $actionId")
 
+    @Synchronized
     fun updateAction(
         plantId: String,
         actionId: String,

@@ -30,11 +30,16 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import java.io.File
 import java.net.Socket
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 private const val MODEL_SIZE = 480
 private const val MODEL_THREADS = 4
+private const val LOOK_TIMEOUT_MS = 5000L
+private const val VISIT_TIMEOUT_MS = 15_000L
 private const val NOT_SURE = "Not sure"
 private const val NEW_PLANT = "New plant"
 
@@ -88,6 +93,21 @@ class LiveActivity : ComponentActivity() {
 
     @Volatile
     private var plantToRecord: String? = null
+
+    @Volatile
+    private var pendingVisit: CompletableFuture<VisitOutcome>? = null
+
+    @Volatile
+    private var sightings: List<Sighting> = emptyList()
+
+    @Volatile
+    private var frameCount = 0
+
+    @Volatile
+    private var missionRunning = false
+
+    @Volatile
+    private var missionStop = false
 
     private val askForCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startCamera() else verdictText.text = "Camera permission is needed"
@@ -153,6 +173,7 @@ class LiveActivity : ComponentActivity() {
         setTextColor(Color.WHITE)
         setBackgroundColor(Color.rgb(190, 30, 30))
         setOnClickListener {
+            missionStop = true
             Thread {
                 try {
                     robot.stop()
@@ -193,7 +214,13 @@ class LiveActivity : ComponentActivity() {
             )
             addView(
                 Button(this@LiveActivity).apply {
-                    text = "Speed tests"
+                    text = "Start mission"
+                    setOnClickListener { startMission() }
+                },
+            )
+            addView(
+                Button(this@LiveActivity).apply {
+                    text = "Tests"
                     setOnClickListener { startActivity(Intent(this@LiveActivity, MainActivity::class.java)) }
                 },
             )
@@ -221,8 +248,73 @@ class LiveActivity : ComponentActivity() {
     private fun hasCamera() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
+    /** Drives by itself, so it runs on its own thread and a person must stand by with STOP. */
+    private fun startMission() {
+        if (missionRunning) return
+        if (!robot.connected) {
+            verdictText.text = "Robot not connected"
+            return
+        }
+        missionRunning = true
+        missionStop = false
+        robot.allowMoves()
+        showMission("Mission started")
+
+        Thread {
+            val mission = Mission(
+                mover = robot,
+                eyes = cameraEyes,
+                inspector = missionInspector,
+                report = ::showMission,
+                stopRequested = { missionStop },
+            )
+            val result = mission.run()
+            missionRunning = false
+            Log.i("CRAP", "mission: $result")
+            showMission("Mission ${result.ending}: ${result.visited.size} visited, ${result.missed.size} missed")
+        }.start()
+    }
+
+    private fun showMission(words: String) {
+        Log.i("CRAP", "mission: $words")
+        runOnUiThread { recordText.text = words }
+    }
+
+    private val cameraEyes = object : Eyes {
+        /** Two frames must finish, because the first may have been taken while the rover moved. */
+        override fun look(): List<Sighting> {
+            val wanted = frameCount + 2
+            val deadline = System.currentTimeMillis() + LOOK_TIMEOUT_MS
+            while (frameCount < wanted) {
+                if (missionStop) return emptyList()
+                if (System.currentTimeMillis() > deadline) throw RobotError("The camera stopped")
+                Thread.sleep(20)
+            }
+            return sightings
+        }
+    }
+
+    private val missionInspector = object : Inspector {
+        override fun visit(plantId: String): VisitOutcome {
+            if (!book.hasPlant(plantId)) book.registerPlant(plantId, "field")
+            val result = CompletableFuture<VisitOutcome>()
+            pendingVisit = result
+            plantToRecord = plantId
+            return try {
+                result.get(VISIT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            } catch (error: TimeoutException) {
+                throw RobotError("Recording the visit timed out")
+            }
+        }
+
+        override fun markDone(plantId: String, actionId: String, note: String) {
+            manager.markDone(plantId, actionId, note)
+        }
+    }
+
     /** Use the plant whose tag is in view, or ask which plant this is. */
     private fun startRecording() {
+        if (missionRunning) return
         val tagged = visiblePlant
         analysis.execute {
             val known = book.listPlants().map { it.plantId }
@@ -286,8 +378,10 @@ class LiveActivity : ComponentActivity() {
         val observation = book.submitObservation(plantId, photo.path, robot.sensors(), detections)
         val result = engine.evaluate(plantId, observation.observationId)
         manager.linkVerification(plantId, observation.observationId)
-        manager.propose(plantId)
+        val action = manager.propose(plantId)
         shownPlant = plantId
+        pendingVisit?.complete(VisitOutcome(result.plantStatus, action?.actionId, action?.actionType))
+        pendingVisit = null
         Log.i("CRAP", "visit: $plantId ${result.plantStatus}, ${result.diagnoses.size} diagnoses, ${boxes.size} boxes")
         showRecord()
     }
@@ -325,12 +419,14 @@ class LiveActivity : ComponentActivity() {
             action.result?.let { words.append("\n$it") }
         }
 
-        val waiting = open?.status == "awaiting_approval"
+        // During a mission the planner owns all movement, so these stay hidden.
+        val usable = open.takeUnless { missionRunning }
+        val waiting = usable?.status == "awaiting_approval"
         runOnUiThread {
             recordText.text = words
-            runButton.visibility = if (open != null && !waiting) View.VISIBLE else View.GONE
+            runButton.visibility = if (usable != null && !waiting) View.VISIBLE else View.GONE
             approveButton.visibility = if (waiting) View.VISIBLE else View.GONE
-            skipButton.visibility = if (open != null) View.VISIBLE else View.GONE
+            skipButton.visibility = if (usable != null) View.VISIBLE else View.GONE
         }
     }
 
@@ -372,9 +468,15 @@ class LiveActivity : ComponentActivity() {
             val start = System.nanoTime()
             model.prepare(upright)
             val boxes = model.detect().map(model::toImage)
-            val tag = reader.read(upright)
+            val tags = reader.readAll(upright)
+            val tag = tags.firstOrNull()
             val ms = (System.nanoTime() - start) / 1_000_000
             visiblePlant = tag?.plantId
+            sightings = tags.map {
+                val spot = finder.locate(it, upright.width, upright.height)
+                Sighting(it.plantId, spot.distanceMetres * 100, spot.bearingDegrees)
+            }
+            frameCount++
 
             // A known plant's species comes from its record, not from the model's guess.
             val species = tag?.plantId?.takeIf(book::hasPlant)?.let { book.getPlant(it).species }

@@ -37,7 +37,7 @@ private val FAILED_ENDINGS = setOf(
  * Talks to the ESP32 over Wi-Fi with one JSON message per line, and keeps the link alive.
  * Moves block until the ESP32 reports how they ended, so run them off the main thread.
  */
-class WifiRobot(private val connect: () -> Socket) : Robot, AutoCloseable {
+class WifiRobot(private val connect: () -> Socket) : Robot, Mover, AutoCloseable {
 
     override val hasArm = false
 
@@ -170,14 +170,14 @@ class WifiRobot(private val connect: () -> Socket) : Robot, AutoCloseable {
     }
 
     /** Positive is forward. */
-    fun moveCentimetres(distance: Double, speed: Int = MOVE_SPEED) {
-        val json = JSONObject().put("cmd", "MOVE_CM").put("distance", distance).put("speed", speed)
+    override fun moveCentimetres(distance: Double) {
+        val json = JSONObject().put("cmd", "MOVE_CM").put("distance", distance).put("speed", MOVE_SPEED)
         runMove(json.toString(), "move")
     }
 
     /** Positive is clockwise, to the right. */
-    fun turnDegrees(angle: Double, speed: Int = TURN_SPEED) {
-        val json = JSONObject().put("cmd", "TURN_DEG").put("angle", angle).put("speed", speed)
+    override fun turnDegrees(angle: Double) {
+        val json = JSONObject().put("cmd", "TURN_DEG").put("angle", angle).put("speed", TURN_SPEED)
         runMove(json.toString(), "turn")
     }
 

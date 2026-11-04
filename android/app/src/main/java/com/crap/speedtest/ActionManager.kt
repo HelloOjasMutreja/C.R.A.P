@@ -172,6 +172,10 @@ class ActionManager(
         return book.updateAction(plantId, actionId, status = "completed", result = result, completedAt = clock())
     }
 
+    /** Close an action the mission carried out in its own way. */
+    fun markDone(plantId: String, actionId: String, note: String): Action =
+        book.updateAction(plantId, actionId, status = "completed", result = note, completedAt = clock())
+
     /** Attach a new observation to completed actions that were waiting for one. */
     fun linkVerification(plantId: String, observationId: String): List<Action> {
         val linked = ArrayList<Action>()

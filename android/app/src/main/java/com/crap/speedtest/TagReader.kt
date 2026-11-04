@@ -47,7 +47,10 @@ class TagReader {
     }
 
     /** Return the largest tag, which is the closest plant, or null if none is visible. */
-    fun read(image: Bitmap): Tag? {
+    fun read(image: Bitmap): Tag? = readAll(image).firstOrNull()
+
+    /** Every tag in view, largest first. */
+    fun readAll(image: Bitmap): List<Tag> {
         val colour = Mat()
         val grey = Mat()
         val ids = Mat()
@@ -57,14 +60,11 @@ class TagReader {
             Imgproc.cvtColor(colour, grey, Imgproc.COLOR_RGBA2GRAY)
             detector.detectMarkers(grey, found, ids)
 
-            var best: Tag? = null
-            for (i in found.indices) {
+            return found.indices.map { i ->
                 val points = FloatArray(8)
                 found[i].get(0, 0, points)
-                val tag = tagFrom(ids.get(i, 0)[0].toInt(), points)
-                if (best == null || tag.sidePixels > best.sidePixels) best = tag
-            }
-            return best
+                tagFrom(ids.get(i, 0)[0].toInt(), points)
+            }.sortedByDescending { it.sidePixels }
         } finally {
             colour.release()
             grey.release()
