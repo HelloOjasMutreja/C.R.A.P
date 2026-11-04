@@ -20,3 +20,16 @@ markers/
 
 # Local Python environment
 .venv/
+
+# Android build output and generated models
+android/.gradle/
+android/.idea/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/*.onnx
+android/hs_err_pid*.log
+android/.export-venv/
+android/.export-work/
+android/app/src/main/assets/*.tflite
