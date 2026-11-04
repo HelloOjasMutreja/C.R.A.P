@@ -13,6 +13,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+
+        // The rover's phone is 64-bit ARM. Leaving the others out makes the app much smaller.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     compileOptions {
@@ -27,6 +30,11 @@ android {
     androidResources {
         noCompress += "onnx"
         noCompress += "tflite"
+
+        // gradle assembleDebug -Prover leaves out models only the speed tests use.
+        if (project.hasProperty("rover")) {
+            ignoreAssetsPattern = "!model_320.onnx:!model_640.onnx:!model_480.tflite"
+        }
     }
 }
 

@@ -36,3 +36,6 @@ android/app/src/main/assets/*.tflite
 
 # ESP32 compile output
 firmware/.pio/
+
+# Built app, shared outside git
+release/

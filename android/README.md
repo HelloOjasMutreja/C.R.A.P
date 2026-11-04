@@ -1,6 +1,8 @@
-# C.R.A.P Speed Test (Android)
+# C.R.A.P Rover (Android)
 
-A small test app that measures how fast the YOLO model runs on the rover's phone, and whether the phone slows down as it heats up. It is the first step towards the full on-phone app. It does not use the camera yet; it runs the model repeatedly on one sample image.
+The app that runs on the phone riding on the rover: live camera detection, plant tags, plant records, decisions, the link to the ESP32, and missions. To install it without building, see [the hardware guide](../docs/HARDWARE_TEAM_GUIDE.md). Build details are in [the handoff](../docs/HANDOFF.md).
+
+The steps below build it yourself. Its **Tests** screen measures model speed and heat.
 
 ## Run it
 
