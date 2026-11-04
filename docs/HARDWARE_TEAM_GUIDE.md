@@ -85,7 +85,7 @@ Also test the safety stop: start `f 100`, then switch off the laptop's Wi-Fi. Th
 
 ## Step 3: Install the phone app
 
-1. On the phone, download the APK from the [Releases page](https://github.com/HelloOjasMutreja/C.R.A.P/releases).
+1. Get `crap-rover-0.1.apk` from Ojas, or from the [Releases page](https://github.com/HelloOjasMutreja/C.R.A.P/releases) if it has been published there, and copy it to the phone.
 2. Open it, and allow installing from this source when asked.
 3. Open **C.R.A.P Rover** and allow the camera.
 

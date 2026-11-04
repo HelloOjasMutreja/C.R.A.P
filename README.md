@@ -5,7 +5,7 @@ An autonomous robotic platform for real-time crop disease detection, diagnosis t
 > **Start here.** The project now runs on a phone riding on the rover, with an ESP32 over Wi-Fi.
 > - Hardware team: [docs/HARDWARE_TEAM_GUIDE.md](docs/HARDWARE_TEAM_GUIDE.md)
 > - Software status and next steps: [docs/HANDOFF.md](docs/HANDOFF.md)
-> - Install the app: [Releases](https://github.com/HelloOjasMutreja/C.R.A.P/releases)
+> - Install the app: see step 3 of the hardware guide
 >
 > The laptop web demo and Bluetooth link described below are older and superseded.
 
