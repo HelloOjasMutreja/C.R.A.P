@@ -1,0 +1,86 @@
+[
+  {
+    "tag_px": 16,
+    "blur": 0,
+    "read_rate": 0.925,
+    "trials": 40
+  },
+  {
+    "tag_px": 16,
+    "blur": 3,
+    "read_rate": 0.95,
+    "trials": 40
+  },
+  {
+    "tag_px": 24,
+    "blur": 0,
+    "read_rate": 0.975,
+    "trials": 40
+  },
+  {
+    "tag_px": 24,
+    "blur": 3,
+    "read_rate": 0.975,
+    "trials": 40
+  },
+  {
+    "tag_px": 32,
+    "blur": 0,
+    "read_rate": 1.0,
+    "trials": 40
+  },
+  {
+    "tag_px": 32,
+    "blur": 3,
+    "read_rate": 1.0,
+    "trials": 40
+  },
+  {
+    "tag_px": 48,
+    "blur": 0,
+    "read_rate": 0.975,
+    "trials": 40
+  },
+  {
+    "tag_px": 48,
+    "blur": 3,
+    "read_rate": 0.95,
+    "trials": 40
+  },
+  {
+    "tag_px": 64,
+    "blur": 0,
+    "read_rate": 0.925,
+    "trials": 40
+  },
+  {
+    "tag_px": 64,
+    "blur": 3,
+    "read_rate": 1.0,
+    "trials": 40
+  },
+  {
+    "tag_px": 96,
+    "blur": 0,
+    "read_rate": 1.0,
+    "trials": 40
+  },
+  {
+    "tag_px": 96,
+    "blur": 3,
+    "read_rate": 0.975,
+    "trials": 40
+  },
+  {
+    "tag_px": 128,
+    "blur": 0,
+    "read_rate": 0.925,
+    "trials": 40
+  },
+  {
+    "tag_px": 128,
+    "blur": 3,
+    "read_rate": 1.0,
+    "trials": 40
+  }
+]

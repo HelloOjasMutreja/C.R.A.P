@@ -1,0 +1,61 @@
+{
+  "sizes": [
+    {
+      "imgsz": 320,
+      "precision": 0.5916750280168837,
+      "recall": 0.6165029779301909,
+      "map50": 0.6435711786097053,
+      "map50_95": 0.5149582368670679
+    },
+    {
+      "imgsz": 480,
+      "precision": 0.6432909023151754,
+      "recall": 0.6249743058336237,
+      "map50": 0.6690307747129872,
+      "map50_95": 0.533787518341297
+    },
+    {
+      "imgsz": 640,
+      "precision": 0.6305808114567589,
+      "recall": 0.5890515933532808,
+      "map50": 0.6625879015702529,
+      "map50_95": 0.5300314177431958
+    },
+    {
+      "imgsz": 800,
+      "precision": 0.5924724575466462,
+      "recall": 0.6296690448294919,
+      "map50": 0.658896392435725,
+      "map50_95": 0.5167998461392661
+    }
+  ],
+  "per_class_ap50_at_800": {
+    "Apple Scab Leaf": 0.7211540616246499,
+    "Apple leaf": 0.7178163788918936,
+    "Apple rust leaf": 0.8121706846673096,
+    "Bell_pepper leaf": 0.7777272727272728,
+    "Bell_pepper leaf spot": 0.5599345054316752,
+    "Blueberry leaf": 0.8231338573706994,
+    "Cherry leaf": 0.7551476680002025,
+    "Corn Gray leaf spot": 0.16583333333333333,
+    "Corn leaf blight": 0.7928039215686276,
+    "Corn rust leaf": 0.9783333333333333,
+    "Peach leaf": 0.8473809523809523,
+    "Potato leaf early blight": 0.4340316530785139,
+    "Potato leaf late blight": 0.3076153846153847,
+    "Raspberry leaf": 0.8958221408221408,
+    "Soyabean leaf": 0.7710570364935736,
+    "Squash Powdery mildew leaf": 0.895,
+    "Strawberry leaf": 0.9931249999999999,
+    "Tomato Early blight leaf": 0.3636351840235705,
+    "Tomato Septoria leaf spot": 0.6169326582917658,
+    "Tomato leaf": 0.38575422506248463,
+    "Tomato leaf bacterial spot": 0.4399248404544056,
+    "Tomato leaf late blight": 0.6138040589020055,
+    "Tomato leaf mosaic virus": 0.3023386675353134,
+    "Tomato leaf yellow virus": 0.6393097007431708,
+    "Tomato mold leaf": 0.3040282079516393,
+    "grape leaf": 0.930365141187926,
+    "grape leaf black rot": 0.9460227272727274
+  }
+}

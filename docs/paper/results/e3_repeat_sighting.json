@@ -1,0 +1,569 @@
+{
+  "pools": {
+    "healthy_species": {
+      "Grape": 10,
+      "Peach": 9,
+      "Soybean": 8,
+      "Bell Pepper": 7,
+      "Tomato": 8,
+      "Apple": 9,
+      "Blueberry": 11,
+      "Cherry": 10,
+      "Raspberry": 7,
+      "Strawberry": 8
+    },
+    "disease_conditions": {
+      "Tomato Bacterial Spot": 9,
+      "Tomato Septoria Leaf Spot": 11,
+      "Bell Pepper Bacterial Spot": 9,
+      "Apple Apple Rust": 10,
+      "Corn Leaf Blight": 12,
+      "Tomato Early Blight": 9,
+      "Grape Black Rot": 8,
+      "Apple Apple Scab": 10,
+      "Corn Common Rust": 10,
+      "Tomato Yellow Leaf Curl Virus": 6,
+      "Tomato Late Blight": 10,
+      "Potato Late Blight": 7,
+      "Potato Early Blight": 8,
+      "Tomato Leaf Mold": 6,
+      "Tomato Mosaic Virus": 10,
+      "Corn Gray Leaf Spot": 3,
+      "Squash Powdery Mildew": 6
+    }
+  },
+  "main": [
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.014,
+      "false_alarm_ci": [
+        0.01037416859545473,
+        0.018868917990735437
+      ],
+      "true_detection_rate": 0.49666666666666665,
+      "true_detection_ci": [
+        0.4787905011220496,
+        0.5145513581823824
+      ],
+      "wrong_condition_rate": 0.219,
+      "wrong_condition_ci": [
+        0.20456510788269577,
+        0.2341536314809245
+      ]
+    },
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.7,
+      "trials": 3000,
+      "false_alarm_rate": 0.012,
+      "false_alarm_ci": [
+        0.008680487365320785,
+        0.016567714803528602
+      ],
+      "true_detection_rate": 0.44233333333333336,
+      "true_detection_ci": [
+        0.4246454260018362,
+        0.4601687399648381
+      ],
+      "wrong_condition_rate": 0.16266666666666665,
+      "wrong_condition_ci": [
+        0.14989279151255872,
+        0.17630337009596284
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 2,
+      "rho": 0.0,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.003,
+      "false_alarm_ci": [
+        0.0015791144978060884,
+        0.00569210779300978
+      ],
+      "true_detection_rate": 0.3416666666666667,
+      "true_detection_ci": [
+        0.32490732734925715,
+        0.3588309896112644
+      ],
+      "wrong_condition_rate": 0.084,
+      "wrong_condition_ci": [
+        0.07459791802270263,
+        0.09446612317041492
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.005666666666666667,
+      "false_alarm_ci": [
+        0.0035410265162924416,
+        0.009056708330977803
+      ],
+      "true_detection_rate": 0.4856666666666667,
+      "true_detection_ci": [
+        0.4678115112690059,
+        0.503558483740052
+      ],
+      "wrong_condition_rate": 0.16,
+      "wrong_condition_ci": [
+        0.14731717802530064,
+        0.17355247102676657
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 4,
+      "rho": 0.0,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.007666666666666666,
+      "false_alarm_ci": [
+        0.0051141489854345384,
+        0.011478470279176485
+      ],
+      "true_detection_rate": 0.6096666666666667,
+      "true_detection_ci": [
+        0.5920804237013497,
+        0.6269724051828365
+      ],
+      "wrong_condition_rate": 0.217,
+      "wrong_condition_ci": [
+        0.20261643891567094,
+        0.23210741603060858
+      ]
+    }
+  ],
+  "correlation": [
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.004333333333333333,
+      "false_alarm_ci": [
+        0.0025341952753612277,
+        0.007400283293681828
+      ],
+      "true_detection_rate": 0.491,
+      "true_detection_ci": [
+        0.47313357790612187,
+        0.5088894422158448
+      ],
+      "wrong_condition_rate": 0.16133333333333333,
+      "wrong_condition_ci": [
+        0.14860482555515536,
+        0.17492807977513902
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.25,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.008333333333333333,
+      "false_alarm_ci": [
+        0.00565092618404757,
+        0.012273321219677051
+      ],
+      "true_detection_rate": 0.519,
+      "true_detection_ci": [
+        0.5011077737016673,
+        0.5368436282630703
+      ],
+      "wrong_condition_rate": 0.16833333333333333,
+      "wrong_condition_ci": [
+        0.15537012730435576,
+        0.18214487348663141
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.5,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.011666666666666667,
+      "false_alarm_ci": [
+        0.008400639851992561,
+        0.016181748247300027
+      ],
+      "true_detection_rate": 0.49366666666666664,
+      "true_detection_ci": [
+        0.4757953736235795,
+        0.5115541590548415
+      ],
+      "wrong_condition_rate": 0.21,
+      "wrong_condition_ci": [
+        0.19580014391460976,
+        0.22494161557097697
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.75,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.011333333333333334,
+      "false_alarm_ci": [
+        0.008121563030961586,
+        0.015795010998774207
+      ],
+      "true_detection_rate": 0.507,
+      "true_detection_ci": [
+        0.48911197251777655,
+        0.5248701229429162
+      ],
+      "wrong_condition_rate": 0.22266666666666668,
+      "wrong_condition_ci": [
+        0.20813897435630146,
+        0.23790371977244362
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 1.0,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.014333333333333333,
+      "false_alarm_ci": [
+        0.010658652128033432,
+        0.019250248527713534
+      ],
+      "true_detection_rate": 0.5053333333333333,
+      "true_detection_ci": [
+        0.48744670312661187,
+        0.5232063219862968
+      ],
+      "wrong_condition_rate": 0.22233333333333333,
+      "wrong_condition_ci": [
+        0.20781400813102527,
+        0.23756287192816297
+      ]
+    }
+  ],
+  "sweep": [
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.35,
+      "trials": 3000,
+      "false_alarm_rate": 0.019666666666666666,
+      "false_alarm_ci": [
+        0.01527753144571005,
+        0.025284394322945665
+      ],
+      "true_detection_rate": 0.5936666666666667,
+      "true_detection_ci": [
+        0.5759821978472711,
+        0.6111115556981889
+      ],
+      "wrong_condition_rate": 0.24466666666666667,
+      "wrong_condition_ci": [
+        0.22961618945460238,
+        0.2603702332648913
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.35,
+      "trials": 3000,
+      "false_alarm_rate": 0.01633333333333333,
+      "false_alarm_ci": [
+        0.012376953877258892,
+        0.02152683119582885
+      ],
+      "true_detection_rate": 0.5946666666666667,
+      "true_detection_ci": [
+        0.5769877678544215,
+        0.6121034278997088
+      ],
+      "wrong_condition_rate": 0.193,
+      "wrong_condition_ci": [
+        0.17927371768610706,
+        0.20751152425208308
+      ]
+    },
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.45,
+      "trials": 3000,
+      "false_alarm_rate": 0.023333333333333334,
+      "false_alarm_ci": [
+        0.018510055966708933,
+        0.02937582456707155
+      ],
+      "true_detection_rate": 0.5516666666666666,
+      "true_detection_ci": [
+        0.5338153622125263,
+        0.5693858185687772
+      ],
+      "wrong_condition_rate": 0.24466666666666667,
+      "wrong_condition_ci": [
+        0.22961618945460238,
+        0.2603702332648913
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.45,
+      "trials": 3000,
+      "false_alarm_rate": 0.017,
+      "false_alarm_ci": [
+        0.012953675419908658,
+        0.022281737792292682
+      ],
+      "true_detection_rate": 0.5763333333333334,
+      "true_detection_ci": [
+        0.5585642196438146,
+        0.593907202284692
+      ],
+      "wrong_condition_rate": 0.166,
+      "wrong_condition_ci": [
+        0.15311407902255814,
+        0.17974022328153144
+      ]
+    },
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.55,
+      "trials": 3000,
+      "false_alarm_rate": 0.026333333333333334,
+      "false_alarm_ci": [
+        0.021180831240235738,
+        0.03269737591955592
+      ],
+      "true_detection_rate": 0.5096666666666667,
+      "true_detection_ci": [
+        0.4917768163958919,
+        0.5275317916212553
+      ],
+      "wrong_condition_rate": 0.22566666666666665,
+      "wrong_condition_ci": [
+        0.21106428721740286,
+        0.24097073353735335
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.55,
+      "trials": 3000,
+      "false_alarm_rate": 0.017,
+      "false_alarm_ci": [
+        0.012953675419908658,
+        0.022281737792292682
+      ],
+      "true_detection_rate": 0.525,
+      "true_detection_ci": [
+        0.5071095386284998,
+        0.54282651658826
+      ],
+      "wrong_condition_rate": 0.144,
+      "wrong_condition_ci": [
+        0.1318914864225525,
+        0.15701908729078845
+      ]
+    },
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.012,
+      "false_alarm_ci": [
+        0.008680487365320785,
+        0.016567714803528602
+      ],
+      "true_detection_rate": 0.49633333333333335,
+      "true_detection_ci": [
+        0.47845767742645096,
+        0.5142183678084244
+      ],
+      "wrong_condition_rate": 0.23233333333333334,
+      "wrong_condition_ci": [
+        0.2175688959834829,
+        0.24778240616240926
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.6,
+      "trials": 3000,
+      "false_alarm_rate": 0.004,
+      "false_alarm_ci": [
+        0.0022896579159291377,
+        0.006979006583557121
+      ],
+      "true_detection_rate": 0.5043333333333333,
+      "true_detection_ci": [
+        0.4864476367521445,
+        0.5222079461520939
+      ],
+      "wrong_condition_rate": 0.15566666666666668,
+      "wrong_condition_ci": [
+        0.14313456199558228,
+        0.1690795041522466
+      ]
+    },
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.65,
+      "trials": 3000,
+      "false_alarm_rate": 0.013333333333333334,
+      "false_alarm_ci": [
+        0.009806999344136478,
+        0.018104459102940097
+      ],
+      "true_detection_rate": 0.476,
+      "true_detection_ci": [
+        0.4581704523332795,
+        0.49389093465863115
+      ],
+      "wrong_condition_rate": 0.19633333333333333,
+      "wrong_condition_ci": [
+        0.18251101350799714,
+        0.21093236912576097
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.65,
+      "trials": 3000,
+      "false_alarm_rate": 0.006666666666666667,
+      "false_alarm_ci": [
+        0.004319805176810569,
+        0.010275371879130066
+      ],
+      "true_detection_rate": 0.471,
+      "true_detection_ci": [
+        0.4531863249523548,
+        0.4888878509962039
+      ],
+      "wrong_condition_rate": 0.15533333333333332,
+      "wrong_condition_ci": [
+        0.142812966298948,
+        0.16873528577932403
+      ]
+    },
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.75,
+      "trials": 3000,
+      "false_alarm_rate": 0.0,
+      "false_alarm_ci": [
+        1.0842021724855044e-19,
+        0.0012788956648046956
+      ],
+      "true_detection_rate": 0.42133333333333334,
+      "true_detection_ci": [
+        0.40377552358107244,
+        0.43909235600352364
+      ],
+      "wrong_condition_rate": 0.13066666666666665,
+      "wrong_condition_ci": [
+        0.11907681009762752,
+        0.14320120083344154
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.75,
+      "trials": 3000,
+      "false_alarm_rate": 0.0,
+      "false_alarm_ci": [
+        1.0842021724855044e-19,
+        0.0012788956648046956
+      ],
+      "true_detection_rate": 0.431,
+      "true_detection_ci": [
+        0.41337827821904644,
+        0.4487982093826967
+      ],
+      "wrong_condition_rate": 0.10566666666666667,
+      "wrong_condition_ci": [
+        0.0951659093341696,
+        0.11717604638013973
+      ]
+    },
+    {
+      "method": "single",
+      "visits": 1,
+      "rho": 0.0,
+      "threshold": 0.85,
+      "trials": 3000,
+      "false_alarm_rate": 0.0,
+      "false_alarm_ci": [
+        1.0842021724855044e-19,
+        0.0012788956648046956
+      ],
+      "true_detection_rate": 0.2876666666666667,
+      "true_detection_ci": [
+        0.2717475401284051,
+        0.30412889756391537
+      ],
+      "wrong_condition_rate": 0.065,
+      "wrong_condition_ci": [
+        0.05672261283041927,
+        0.07439002639796083
+      ]
+    },
+    {
+      "method": "repeat",
+      "visits": 3,
+      "rho": 0.0,
+      "threshold": 0.85,
+      "trials": 3000,
+      "false_alarm_rate": 0.0,
+      "false_alarm_ci": [
+        1.0842021724855044e-19,
+        0.0012788956648046956
+      ],
+      "true_detection_rate": 0.27066666666666667,
+      "true_detection_ci": [
+        0.25506820174220296,
+        0.2868517184027209
+      ],
+      "wrong_condition_rate": 0.024,
+      "wrong_condition_ci": [
+        0.019101719390622898,
+        0.030115789282271176
+      ]
+    }
+  ]
+}
