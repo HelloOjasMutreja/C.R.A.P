@@ -16,6 +16,7 @@ static String inputBuffer;
 static unsigned long lastTelemetry = 0;
 static bool movementWasActive = false;
 static bool hadClient = false;
+static unsigned long lastCommandAt = 0;
 
 static void sendDoc(JsonDocument& doc) {
   if (client && client.connected()) {
@@ -59,9 +60,13 @@ static void processCommand(const String& message) {
     return;
   }
 
+  lastCommandAt = millis();
   const char* cmd = doc["cmd"] | "";
 
-  if (strcmp(cmd, "STOP") == 0) {
+  if (strcmp(cmd, "PING") == 0) {
+    return;
+  }
+  else if (strcmp(cmd, "STOP") == 0) {
     cancelMovement();
     movementWasActive = false;
     sendStatus("STOPPED");
@@ -101,8 +106,12 @@ static void processCommand(const String& message) {
       sendStatus("INVALID_DISTANCE");
       return;
     }
-    moveDistance(distance, speed);
-    movementWasActive = isMovementActive();
+    if (!moveDistance(distance, speed)) {
+      movementWasActive = false;
+      sendStatus("TOO_SMALL");
+      return;
+    }
+    movementWasActive = true;
     sendStatus("MOVEMENT_STARTED");
   }
   else if (strcmp(cmd, "TURN_DEG") == 0) {
@@ -112,8 +121,12 @@ static void processCommand(const String& message) {
       sendStatus("INVALID_ANGLE");
       return;
     }
-    rotateAngle(angle, speed);
-    movementWasActive = isMovementActive();
+    if (!rotateAngle(angle, speed)) {
+      movementWasActive = false;
+      sendStatus("TOO_SMALL");
+      return;
+    }
+    movementWasActive = true;
     sendStatus("TURN_STARTED");
   }
   else if (strcmp(cmd, "SENSORS") == 0) {
@@ -140,22 +153,27 @@ void initCommunication() {
 }
 
 void handleCommunication() {
-  if (!client || !client.connected()) {
+  if ((!client || !client.connected()) && hadClient) {
+    cancelMovement();
+    movementWasActive = false;
+    Serial.println("Phone disconnected: motors stopped");
+    hadClient = false;
+  }
+
+  // A phone that lost Wi-Fi leaves a dead connection behind, so a new one always wins.
+  WiFiClient newClient = server.available();
+  if (newClient) {
     if (hadClient) {
       cancelMovement();
       movementWasActive = false;
-      Serial.println("Phone disconnected: motors stopped");
-      hadClient = false;
+      client.stop();
     }
-
-    WiFiClient newClient = server.available();
-    if (newClient) {
-      client = newClient;
-      client.setNoDelay(true);
-      inputBuffer = "";
-      hadClient = true;
-      sendStatus("CONNECTED");
-    }
+    client = newClient;
+    client.setNoDelay(true);
+    inputBuffer = "";
+    hadClient = true;
+    lastCommandAt = millis();
+    sendStatus("CONNECTED");
   }
 
   if (client && client.connected()) {
@@ -171,6 +189,14 @@ void handleCommunication() {
           sendStatus("COMMAND_TOO_LONG");
         }
       }
+    }
+
+    // A frozen app or dropped Wi-Fi can leave the connection looking alive.
+    if (millis() - lastCommandAt > COMMAND_SILENCE_LIMIT_MS && motorsAreRunning()) {
+      cancelMovement();
+      movementWasActive = false;
+      sendStatus("SILENCE_STOP");
+      Serial.println("No commands from the phone: motors stopped");
     }
 
     if (movementWasActive && !isMovementActive()) {

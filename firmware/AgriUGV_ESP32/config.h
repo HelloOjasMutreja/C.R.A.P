@@ -34,6 +34,18 @@
 #define MOVEMENT_TIMEOUT_BASE_MS 15000UL
 #define MOVEMENT_TIMEOUT_PER_METER_MS 10000UL
 
+// Stop if the phone goes quiet. The app sends PING three times a second.
+#define COMMAND_SILENCE_LIMIT_MS 1000UL
+
+// Stop a move if the encoders report nothing for this long: stuck wheels or a loose wire.
+#define STALL_LIMIT_MS 1500UL
+
+// Ignore encoder edges closer together than this; motor noise can look like pulses.
+#define ENCODER_DEBOUNCE_US 1000
+
+// After this many failed readings in a row, report the DHT22 as unavailable.
+#define SENSOR_MAX_FAILURES 3
+
 // Wi-Fi access point
 #define WIFI_SSID "AgriUGV"
 #define WIFI_PASSWORD "agriugv123"

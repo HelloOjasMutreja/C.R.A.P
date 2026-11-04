@@ -8,8 +8,9 @@ void moveForward(int speed);
 void moveBackward(int speed);
 void turnLeft(int speed);
 void turnRight(int speed);
-void moveDistance(float cm, int speed);
-void rotateAngle(float degrees, int speed);
+// These return false, and leave the robot stopped, if the move is too small to measure.
+bool moveDistance(float cm, int speed);
+bool rotateAngle(float degrees, int speed);
 void updateMovement();
 bool isMovementComplete();
 bool isMovementActive();

@@ -31,11 +31,18 @@ void initMotors() {
   stopMotors();
 }
 
+static bool running = false;
+
 void driveMotors(int leftSpeed, int rightSpeed) {
+  running = leftSpeed != 0 || rightSpeed != 0;
   setOneMotor(leftSpeed, ENA, IN1, IN2, LEFT_MOTOR_INVERTED);
   setOneMotor(rightSpeed, ENB, IN3, IN4, RIGHT_MOTOR_INVERTED);
 }
 
 void stopMotors() {
   driveMotors(0, 0);
+}
+
+bool motorsAreRunning() {
+  return running;
 }

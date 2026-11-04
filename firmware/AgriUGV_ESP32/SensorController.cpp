@@ -7,6 +7,7 @@ static DHT dht(DHT_PIN, DHT22);
 static SensorData latest = {NAN, NAN};
 static unsigned long lastDhtRead = 0;
 static bool dhtHasRead = false;
+static int failures = 0;
 
 void initSensors() {
   dht.begin();
@@ -20,8 +21,13 @@ void updateSensors() {
     float h = dht.readHumidity();
     float t = dht.readTemperature();
 
-    if (!isnan(h)) latest.humidity = h;
-    if (!isnan(t)) latest.temperature = t;
+    if (isnan(h) || isnan(t)) {
+      // An old value must not pass as a current reading once the sensor has stopped working.
+      if (++failures >= SENSOR_MAX_FAILURES) latest = {NAN, NAN};
+    } else {
+      failures = 0;
+      latest = {h, t};
+    }
 
     lastDhtRead = now;
     dhtHasRead = true;

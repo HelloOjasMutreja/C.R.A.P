@@ -33,3 +33,6 @@ android/hs_err_pid*.log
 android/.export-venv/
 android/.export-work/
 android/app/src/main/assets/*.tflite
+
+# ESP32 compile output
+firmware/.pio/

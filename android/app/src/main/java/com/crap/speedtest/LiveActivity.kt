@@ -29,6 +29,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.net.Socket
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -68,6 +69,8 @@ class LiveActivity : ComponentActivity() {
     private lateinit var approveButton: Button
     private lateinit var skipButton: Button
     private lateinit var analysis: ExecutorService
+    private lateinit var network: RoverNetwork
+    private lateinit var robot: WifiRobot
 
     // Created and used only on the analysis thread, which also owns the plant records.
     private var detector: Detector? = null
@@ -94,10 +97,17 @@ class LiveActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         analysis = Executors.newSingleThreadExecutor()
+        network = RoverNetwork(this)
+
+        // A robot_host extra points the app at a simulated ESP32 during testing.
+        val testHost = intent.getStringExtra("robot_host")
+        robot = WifiRobot {
+            if (testHost == null) network.connect() else Socket(testHost, ROBOT_PORT)
+        }
         analysis.execute {
             book = PlantBook(File(filesDir, "plants.json"))
             engine = DiagnosticEngine(book)
-            manager = ActionManager(book, SimulatedRobot())
+            manager = ActionManager(book, robot)
         }
 
         preview = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
@@ -122,6 +132,7 @@ class LiveActivity : ComponentActivity() {
             addView(boxesView)
             addView(verdictText, layoutAt(Gravity.TOP, 0))
             addView(statsText, layoutAt(Gravity.TOP, 170))
+            addView(stopButton(), layoutAt(Gravity.TOP or Gravity.END, 170))
             addView(
                 bottomPanel(),
                 FrameLayout.LayoutParams(
@@ -136,13 +147,33 @@ class LiveActivity : ComponentActivity() {
         if (hasCamera()) startCamera() else askForCamera.launch(Manifest.permission.CAMERA)
     }
 
+    /** Always on screen, and bypasses the analysis thread so it works during a move. */
+    private fun stopButton() = Button(this).apply {
+        text = "STOP"
+        setTextColor(Color.WHITE)
+        setBackgroundColor(Color.rgb(190, 30, 30))
+        setOnClickListener {
+            Thread {
+                try {
+                    robot.stop()
+                } catch (error: RobotError) {
+                    runOnUiThread { verdictText.text = "Stop failed: ${error.message}" }
+                }
+            }.start()
+        }
+    }
+
     private fun bottomPanel(): View {
         recordText = TextView(this).apply {
             setTextColor(Color.WHITE)
             textSize = 14f
             text = "No visit recorded yet"
         }
-        runButton = actionButton("Run (simulated)") { act { plant, action -> manager.execute(plant, action) } }
+        runButton = actionButton("Run on robot") {
+            // Cleared here, at the tap: a STOP pressed after this must still cancel the queued move.
+            robot.allowMoves()
+            act { plant, action -> manager.execute(plant, action) }
+        }
         approveButton = actionButton("Approve") { act { plant, action -> manager.approve(plant, action) } }
         skipButton = actionButton("Skip") { act { plant, action -> manager.reject(plant, action) } }
 
@@ -252,7 +283,7 @@ class LiveActivity : ComponentActivity() {
             )
         }
 
-        val observation = book.submitObservation(plantId, photo.path, emptyMap(), detections)
+        val observation = book.submitObservation(plantId, photo.path, robot.sensors(), detections)
         val result = engine.evaluate(plantId, observation.observationId)
         manager.linkVerification(plantId, observation.observationId)
         manager.propose(plantId)
@@ -362,7 +393,8 @@ class LiveActivity : ComponentActivity() {
             runOnUiThread {
                 boxesView.show(shown, tag, upright.width, upright.height)
                 verdictText.text = words
-                statsText.text = "${place ?: "No plant tag"}\n$ms ms per frame, ${shown.size} boxes, on phone CPU"
+                val link = if (robot.connected) "Robot connected" else "Robot not connected"
+                statsText.text = "${place ?: "No plant tag"}\n$ms ms per frame, ${shown.size} boxes\n$link"
             }
         } catch (error: Throwable) {
             Log.e("CRAP", "Live detection failed", error)
@@ -384,5 +416,7 @@ class LiveActivity : ComponentActivity() {
         super.onDestroy()
         analysis.execute { detector?.close() }
         analysis.shutdown()
+        robot.close()
+        network.close()
     }
 }

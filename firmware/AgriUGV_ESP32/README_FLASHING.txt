@@ -61,9 +61,20 @@ Examples:
 {"cmd":"MOVE_CM","distance":50,"speed":120}
 {"cmd":"TURN_DEG","angle":90,"speed":110}
 {"cmd":"SENSORS"}
+{"cmd":"PING"}
+
+The phone must send a command at least once a second while the robot moves;
+PING does nothing else. After 1 second of silence the motors stop and the
+ESP32 sends the status SILENCE_STOP.
+
+Every move ends with one status: COMPLETE, STOPPED, TIMEOUT or STALLED.
+STALLED means no encoder pulses for 1.5 seconds. A move too small to measure
+gets TOO_SMALL and the robot does not move. One encoder pulse is about 1 cm
+of travel or 4.7 degrees of turn with the example values in config.h.
 
 Telemetry JSON includes humidity, temperature, left_ticks, right_ticks,
 movement_active and movement_result. There are no ultrasonic fields.
+Humidity and temperature are null if the DHT22 has failed 3 readings in a row.
 
 IMPORTANT CALIBRATION / SAFETY
 ------------------------------

@@ -16,16 +16,18 @@ static unsigned long startedAt = 0;
 static unsigned long timeoutMs = 0;
 static const char* resultText = "IDLE";
 static bool continuousForward = false;
+static long lastTicks = 0;
+static unsigned long lastTickAt = 0;
 
 static long cmToTicks(float cm) {
   const float circumference = PI * WHEEL_DIAMETER_CM;
   return lroundf((fabsf(cm) / circumference) * ENCODER_PULSES_PER_WHEEL_REV);
 }
 
-static void startMove(long leftTarget, long rightTarget, int leftDir, int rightDir,
-                      int speed, float estimatedTravelCm) {
+static bool startMove(long leftTarget, long rightTarget, int leftDir, int rightDir,
+                      int speed, float estimatedTravelCm, MoveMode newMode) {
   cancelMovement();
-  if (leftTarget <= 0 || rightTarget <= 0) return;
+  if (leftTarget <= 0 || rightTarget <= 0) return false;
 
   resetEncoders();
   targetLeft = leftTarget;
@@ -35,12 +37,15 @@ static void startMove(long leftTarget, long rightTarget, int leftDir, int rightD
   baseSpeed = constrain(abs(speed), MIN_MOVEMENT_SPEED, PWM_MAX);
 
   timeoutMs = MOVEMENT_TIMEOUT_BASE_MS +
-              (unsigned long)(fabsf(estimatedTravelCm) * 10.0f *
+              (unsigned long)(fabsf(estimatedTravelCm) *
                               MOVEMENT_TIMEOUT_PER_METER_MS / 100.0f);
   startedAt = millis();
-  mode = MODE_DISTANCE;
+  lastTicks = 0;
+  lastTickAt = startedAt;
+  mode = newMode;
   resultText = "RUNNING";
   driveMotors(leftDirection * baseSpeed, rightDirection * baseSpeed);
+  return true;
 }
 
 void initMovement() {
@@ -78,20 +83,19 @@ void turnRight(int speed) {
   resultText = "CONTINUOUS";
 }
 
-void moveDistance(float cm, int speed) {
-  if (cm == 0) return;
+bool moveDistance(float cm, int speed) {
+  if (cm == 0) return false;
   long ticks = cmToTicks(cm);
-  startMove(ticks, ticks, cm > 0 ? 1 : -1, cm > 0 ? 1 : -1, speed, fabsf(cm));
+  return startMove(ticks, ticks, cm > 0 ? 1 : -1, cm > 0 ? 1 : -1, speed, fabsf(cm), MODE_DISTANCE);
 }
 
-void rotateAngle(float degrees, int speed) {
-  if (degrees == 0) return;
+bool rotateAngle(float degrees, int speed) {
+  if (degrees == 0) return false;
   float arc = PI * TRACK_WIDTH_CM * fabsf(degrees) / 360.0f;
   long ticks = cmToTicks(arc);
   int leftDir = degrees > 0 ? 1 : -1;  // positive = clockwise/right
   int rightDir = -leftDir;
-  startMove(ticks, ticks, leftDir, rightDir, speed, arc);
-  mode = MODE_ANGLE;
+  return startMove(ticks, ticks, leftDir, rightDir, speed, arc, MODE_ANGLE);
 }
 
 void updateMovement() {
@@ -106,6 +110,17 @@ void updateMovement() {
 
   long left = labs(getLeftTicks());
   long right = labs(getRightTicks());
+
+  // With no encoder pulses the robot cannot know where it is, so it must not keep driving.
+  if (left + right != lastTicks) {
+    lastTicks = left + right;
+    lastTickAt = millis();
+  } else if (millis() - lastTickAt > STALL_LIMIT_MS) {
+    stopMotors();
+    mode = MODE_IDLE;
+    resultText = "STALLED";
+    return;
+  }
 
   bool leftDone = left >= targetLeft;
   bool rightDone = right >= targetRight;

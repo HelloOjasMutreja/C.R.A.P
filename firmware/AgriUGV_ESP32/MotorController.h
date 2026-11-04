@@ -6,5 +6,6 @@
 void initMotors();
 void driveMotors(int leftSpeed, int rightSpeed);
 void stopMotors();
+bool motorsAreRunning();
 
 #endif
