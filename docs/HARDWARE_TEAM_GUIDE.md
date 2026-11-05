@@ -118,8 +118,16 @@ With the wheels on the ground, in an open space, use `drive_test.py`:
 4. Mount the phone upright (portrait), facing forward, firmly, on the rover's centre line.
 5. Check: hold a tag 1 metre from the camera. The app should show a cyan outline, the plant ID and about `100 cm`.
    **Please report this result.** A real printed tag has not been tested through the camera yet.
-6. **Hang each tag within about 15 cm of the camera's height.** A tag much higher or lower leaves the picture as the rover closes in.
+6. **Hang each tag near the camera's height:** within about 15 cm if the phone is upright, or 10 cm if it is sideways. A tag much higher or lower leaves the picture as the rover closes in.
 7. Keep tags within about 1.5 metres and facing the rover. A 10 cm tag is rejected if it looks too small or too angled. The app needs about 2 seconds of steady view to trust a tag.
+
+## Mounting the phone upright or sideways
+
+Either works, and there is nothing to set. The app turns with the phone.
+
+- **Fit the phone in its mount before starting a mission.** The screen locks to its current direction when a mission starts, so that a bump can't swap left and right.
+- Check the picture on screen is the right way up before you start.
+- Sideways gives the rover a wider view, but a shorter one.
 
 ## Step 7: Run a mission
 

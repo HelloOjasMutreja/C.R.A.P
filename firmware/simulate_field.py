@@ -49,7 +49,11 @@ class World:
         self.lock = threading.Lock()
         self.x, self.y, self.heading = 0.0, 0.0, 0.0
         self.motion = None
-        self.leaf = cv2.imread(str(ROOT / "vision" / "sample_images" / "tomato_leaf.png"))
+        leaf = cv2.imread(str(ROOT / "vision" / "sample_images" / "tomato_leaf.png"))
+        # Cropped square, not squeezed: a stretched leaf makes the detector report mosaic virus.
+        side = min(leaf.shape[:2])
+        left = (leaf.shape[1] - side) // 2
+        self.leaf = leaf[:side, left:left + side]
         # 240 px of marker plus a 30 px border on each side. The caption below it is cut off.
         self.tags = {marker: cv2.cvtColor(render_marker(marker, size=240)[:300, :300], cv2.COLOR_GRAY2BGR)
                      for _, marker, _, _ in PLANTS}
@@ -159,11 +163,18 @@ def serve_frames(world):
 
 
 def main():
+    global WIDTH, HEIGHT, TAG_DROP_CM
     parser = argparse.ArgumentParser()
     parser.add_argument("--slip", type=float, default=0.05, help="wheel slip, as a share of each move")
+    parser.add_argument("--landscape", action="store_true", help="a phone mounted on its side: 640x480 frames")
+    parser.add_argument("--tag-drop", type=float, default=TAG_DROP_CM, help="how far tags hang below the camera, in cm")
+    parser.add_argument("--bind", default="127.0.0.1", help="address for the rover link; 0.0.0.0 allows Wi-Fi tests")
     parser.add_argument("--save-frame", help="save the starting view to this file and exit")
     args = parser.parse_args()
 
+    TAG_DROP_CM = args.tag_drop
+    if args.landscape:
+        WIDTH, HEIGHT = 640, 480
     world = World(args.slip)
     if args.save_frame:
         cv2.imwrite(args.save_frame, world.render())
@@ -171,7 +182,7 @@ def main():
     FieldRover.world = world
     threading.Thread(target=serve_frames, args=(world,), daemon=True).start()
 
-    server = socket.create_server(("127.0.0.1", esp.PORT))
+    server = socket.create_server((args.bind, esp.PORT))
     print("Virtual field ready on ports", esp.PORT, "and", FRAME_PORT, flush=True)
     while True:
         link, _ = server.accept()

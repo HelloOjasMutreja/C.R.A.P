@@ -50,6 +50,7 @@ The target design has **no laptop**. A Nothing Phone (2a) Plus rides on the rove
 - **While driving, the app reads tags only.** The detector runs for a visit, not on the way there. Frames are spaced 100 ms apart so the tracker's 3 of 4 frames are not nearly the same picture.
 - **Leaving the app stops the rover.** With the app out of sight, nobody can see STOP and the camera stops.
 - **The remote page needs a PIN to act, but not to stop.** A mission started from it stops if the page goes quiet for 4 seconds.
+- **The app follows the phone, then locks.** It turns with the mount with no setting to get wrong, and locks when a mission starts: a turn mid-mission would swap left and right.
 - **Detector confidence is weak evidence.** Agreement across distinct views is what counts. See the rules in `diagnostics/engine.py`.
 
 ## Build and test
@@ -80,7 +81,7 @@ cd android
   adb reverse tcp:3334 tcp:3334
   adb shell am start -n com.crap.speedtest/.LiveActivity --es robot_host 127.0.0.1 --es frame_host 127.0.0.1
   ```
-  Type `1-3` in the plant box. PLANT_017 is off that list and should be ignored.
+  Type `1-3` in the plant box. PLANT_017 is off that list and should be ignored. For a sideways phone, add `--landscape` to the Python command and `--es orientation landscape` (or `reverse`) to the last one.
 - **Remote page over USB:** `adb forward tcp:8080 tcp:8080`, then open `http://127.0.0.1:8080`. Add `--es remote_pin 123456` to the start command to set the PIN.
 - **Tag checks without a camera:** `python android/check_tags.py`
 - **Tests over USB:** `adb shell am start -n com.crap.speedtest/.MainActivity --es run heat` (also `gpu`, `speed`, `tag`). Results appear in `adb logcat -s CRAP:I`. `uiautomator` hangs while the camera runs, so tap by coordinates from a screenshot.
@@ -101,14 +102,14 @@ cd android
 7. **"Move on" by hand no longer moves the rover.** It is marked done, and a person moves it. The rules' forward drive remains in `PLANS` for parity with the Python.
 8. **Mission settings are unproven:** 40 cm standoff, 6 degree aim, 600 cm travel limit.
 9. **No obstacle detection.** The rover needs a person standing by.
-10. **The app is locked to portrait,** and the mount is undecided.
+10. **Landscape needs one check by hand.** Forced landscape, reversed landscape and portrait all work with the real camera and in full virtual missions. The orientation locks during a mission. Rotating the phone while the app runs has not been watched by a person.
 11. **The APK is debug-signed.** Fine for the team, not for a store.
 12. **The Wi-Fi password `agriugv123` is in a public repo.** Change it for anything beyond the demo.
 13. **The paper is out of date.** It describes the older repeat-sighting rule and the laptop design. Its numbers and claims need updating before submission.
 14. **The Android package is still called `com.crap.speedtest`** from its first version.
-15. **The stop paths are not proven on the phone.** The remote page started a mission and refused a missing PIN over USB. The tests for a quiet page, remote STOP, leaving the app and a cut link were interrupted when the phone dropped off USB at 1% battery.
-15a. **The remote page has never run over real Wi-Fi.** It depends on the ESP32 passing traffic between two connected devices, and on Android answering on a network with no internet.
-16a. **A healthy-looking leaf reached "diseased, next spray" in the virtual field,** from two close views of one sample image. Spraying still needs a person, but check this false alarm before trusting a diseased verdict.
+15. **Stop paths pass on the phone, in simulation only.** A quiet page, remote STOP, leaving the app and a cut link each ended the mission, and the app reconnected by itself without resuming it. None has stopped a real rover.
+15a. **The remote page works over home Wi-Fi, but not yet on the rover's.** A laptop loaded it and pressed STOP on a normal network. On the rover it also depends on the ESP32 passing traffic between two connected devices.
+16a. **Stretched pictures can fool the detector.** A sample leaf squeezed from 4:3 to square read as mosaic virus and reached "diseased, next spray". The same leaf cropped square reads healthy. Check for this if the mount or lens distorts the picture.
 16b. **Phone heat:** the phone reported "very hot" with the detector at about 1.9 seconds a frame while charging from 1%. Test heat on a charged phone.
 16. **The page is plain HTTP.** The PIN crosses the rover's Wi-Fi unencrypted, and the Wi-Fi password is public (gap 12).
 

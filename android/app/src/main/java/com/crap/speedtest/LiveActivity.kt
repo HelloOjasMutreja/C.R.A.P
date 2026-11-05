@@ -3,12 +3,15 @@ package com.crap.speedtest
 import android.Manifest
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.hardware.display.DisplayManager
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.PowerManager
@@ -17,6 +20,7 @@ import android.util.Log
 import android.util.Size
 import android.view.Gravity
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
@@ -53,6 +57,8 @@ private const val MODEL_SIZE = 480
 private const val MODEL_THREADS = 4
 private const val FRAMES_PER_LOOK = 4
 private const val PLANTS_KEY = "mission_plants"
+private const val PANEL_SHARE = 0.55
+private const val PANEL_LINES_LANDSCAPE = 3
 private const val LOOK_TIMEOUT_MS = 8000L
 
 // While driving only tags are read. Spacing the frames keeps the tracker's 3 of 4 frames
@@ -112,6 +118,9 @@ class LiveActivity : ComponentActivity() {
     private lateinit var network: RoverNetwork
     private lateinit var robot: WifiRobot
     private var feed: FrameFeed? = null
+    private var screenUse: Preview? = null
+    private var frameUse: ImageAnalysis? = null
+    private lateinit var panel: View
     private var remote: RemoteServer? = null
     private lateinit var remotePin: String
     private var lastPictureAt = 0L
@@ -181,13 +190,17 @@ class LiveActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        requestedOrientation = freeOrientation()
+        getSystemService(DisplayManager::class.java).registerDisplayListener(rotationWatcher, null)
         analysis = Executors.newSingleThreadExecutor()
         network = RoverNetwork(this)
 
         // A robot_host extra points the app at a simulated ESP32 during testing.
         val testHost = intent.getStringExtra("robot_host")
+        // A wifi_host extra tests the real Wi-Fi path against a laptop instead of the rover.
+        val wifiHost = intent.getStringExtra("wifi_host") ?: ROBOT_HOST
         robot = WifiRobot {
-            if (testHost == null) network.connect() else Socket(testHost, ROBOT_PORT)
+            if (testHost == null) network.connect(wifiHost) else Socket(testHost, ROBOT_PORT)
         }
         // Simulated plants must never mix with the real records.
         val records = if (intent.hasExtra("frame_host")) "plants_virtual.json" else "plants.json"
@@ -224,14 +237,8 @@ class LiveActivity : ComponentActivity() {
             addView(verdictText, layoutAt(Gravity.TOP, 0))
             addView(statsText, layoutAt(Gravity.TOP, 170))
             addView(stopButton(), layoutAt(Gravity.TOP or Gravity.END, 170))
-            addView(
-                bottomPanel(),
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    Gravity.BOTTOM,
-                ),
-            )
+            panel = bottomPanel()
+            addView(panel, panelLayout())
         }
         setContentView(root)
 
@@ -317,6 +324,40 @@ class LiveActivity : ComponentActivity() {
         return "Remote: http://$where:$REMOTE_PORT PIN $remotePin"
     }
 
+    /** An orientation extra forces one during testing; otherwise the app follows the mount. */
+    private fun freeOrientation() = when (intent.getStringExtra("orientation")) {
+        "landscape" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        "reverse" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+        "portrait" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+    }
+
+    /** Keeps the camera's idea of "up" right. A half turn changes no configuration, so this watches the display. */
+    private val rotationWatcher = object : DisplayManager.DisplayListener {
+        override fun onDisplayChanged(displayId: Int) {
+            val rotation = preview.display?.rotation ?: return
+            screenUse?.targetRotation = rotation
+            frameUse?.targetRotation = rotation
+        }
+
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+    }
+
+    /** In landscape the panel sits in the bottom corner, leaving the picture and STOP clear. */
+    private fun panelLayout(): FrameLayout.LayoutParams {
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val width = if (landscape) (resources.displayMetrics.widthPixels * PANEL_SHARE).toInt() else FrameLayout.LayoutParams.MATCH_PARENT
+        recordText.maxLines = if (landscape) PANEL_LINES_LANDSCAPE else Int.MAX_VALUE
+        return FrameLayout.LayoutParams(width, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.START)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        panel.layoutParams = panelLayout()
+    }
+
     /** Drops frames while the last one is being checked, as the real camera does. */
     private fun useFeedFrame(frame: Bitmap, view: ImageView) {
         runOnUiThread { view.setImageBitmap(frame) }
@@ -380,6 +421,8 @@ class LiveActivity : ComponentActivity() {
             setHintTextColor(Color.LTGRAY)
             setTextColor(Color.WHITE)
             isSingleLine = true
+            // A full-screen landscape keyboard would hide STOP.
+            imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
             setText(getPreferences(MODE_PRIVATE).getString(PLANTS_KEY, ""))
         }
         val main = LinearLayout(this).apply {
@@ -441,6 +484,8 @@ class LiveActivity : ComponentActivity() {
             return
         }
         getPreferences(MODE_PRIVATE).edit().putString(PLANTS_KEY, typed).apply()
+        // A turn of the picture mid-mission would swap left and right, so a bump must not rotate it.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
         // The keyboard pushes STOP off the screen, so it must not open during a mission.
         plantsBox.isEnabled = false
         missionRunning = true
@@ -467,7 +512,10 @@ class LiveActivity : ComponentActivity() {
                 MissionResult(emptyList(), emptyList(), "failed: ${error.message}")
             }
             missionRunning = false
-            runOnUiThread { plantsBox.isEnabled = true }
+            runOnUiThread {
+                plantsBox.isEnabled = true
+                requestedOrientation = freeOrientation()
+            }
             Log.i("CRAP", "mission: $result")
             showMission("Mission ${result.ending}: ${result.visited.size} visited, ${result.missed.size} missed")
             runOnUiThread { if (result.ending != "finished") verdictText.text = "Mission ${result.ending}" }
@@ -668,6 +716,7 @@ class LiveActivity : ComponentActivity() {
         future.addListener({
             val provider = future.get()
             val screen = Preview.Builder().build().also { it.surfaceProvider = preview.surfaceProvider }
+            screenUse = screen
 
             val frames = ImageAnalysis.Builder()
                 .setResolutionSelector(
@@ -683,6 +732,7 @@ class LiveActivity : ComponentActivity() {
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
+            frameUse = frames
             frames.setAnalyzer(analysis) { image -> analyze(image) }
 
             provider.unbindAll()
@@ -750,7 +800,9 @@ class LiveActivity : ComponentActivity() {
             }
 
             frames++
-            if (frames % 10 == 0) Log.i("CRAP", "live: $ms ms, ${boxes.size} boxes, $words, ${place ?: "no tag"}")
+            if (frames % 10 == 0) {
+                Log.i("CRAP", "live: ${upright.width}x${upright.height}, $ms ms, ${boxes.size} boxes, $words, ${place ?: "no tag"}")
+            }
 
             runOnUiThread {
                 boxesView.show(shown, tag, upright.width, upright.height)
@@ -774,6 +826,7 @@ class LiveActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        getSystemService(DisplayManager::class.java).unregisterDisplayListener(rotationWatcher)
         feed?.close()
         remote?.close()
         analysis.execute { detector?.close() }

@@ -14,7 +14,7 @@
   #link { font-size:14px; color:var(--dim); }
   #link.good { color:var(--accent); }
   #link.bad { color:#ff8a80; font-weight:600; }
-  #view { position:relative; background:#000; border-radius:8px; overflow:hidden; aspect-ratio:3/4; max-height:56vh; width:100%; }
+  #view { position:relative; background:#000; border-radius:8px; overflow:hidden; aspect-ratio:3/4; max-height:56vh; width:100%; margin:0 auto; }
   #view img { width:100%; height:100%; object-fit:contain; display:block; }
   #stale { position:absolute; inset:auto 0 0 0; padding:6px 10px; background:rgba(0,0,0,.7); font-size:14px; display:none; }
   #stop { position:sticky; top:8px; z-index:5; width:100%; min-height:72px; border:0; border-radius:8px; background:var(--stop); color:#fff; font-size:26px; font-weight:700; letter-spacing:1px; cursor:pointer; }
@@ -109,7 +109,12 @@ async function poll() {
 function nextPicture() {
   const image = new Image();
   const again = () => setTimeout(nextPicture, 250);
-  image.onload = () => { $("picture").src = image.src; lastPicture = Date.now(); again(); };
+  image.onload = () => {
+    $("picture").src = image.src;
+    $("view").style.aspectRatio = image.naturalWidth + " / " + image.naturalHeight;
+    lastPicture = Date.now();
+    again();
+  };
   image.onerror = again;
   image.src = "/frame.jpg?t=" + Date.now();
 }
