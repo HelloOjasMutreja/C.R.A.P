@@ -18,7 +18,7 @@ The target design has **no laptop**. A Nothing Phone (2a) Plus rides on the rove
 | 2. Live camera detection | Done | Real phone |
 | 3. Plant tags, distance, direction | Built | Self-test image on the phone. **No real printed tag yet** |
 | 4. Records and rules on the phone | Done | 3,008 visits match the Python exactly; a real visit on the phone |
-| 5. Robot link over Wi-Fi | Built | Tests, and the phone against a simulator over USB. **No real ESP32 or real Wi-Fi yet** |
+| 5. Robot link over Wi-Fi | Built | Tests, and a full simulated mission over home Wi-Fi. **No real ESP32, and not the rover's own network** |
 | 6. Mission loop | Built | 200 simulated fields, and a full two-plant mission on the phone in the virtual field: stopped 41 and 42 cm from plants, ignored an unlisted tag. **No real rover** |
 | 7. Arm, spray, field test | Not started | Needs hardware and firmware |
 
@@ -93,7 +93,7 @@ cd android
 0. **False tags are reduced, but not ruled out.** The phone once reported `PLANT_017` at 474 cm with no tag present. `TagReader` now decodes strictly and rejects tiny or misshapen tags, and `TagTracker` needs 3 of the last 4 frames. On simulated clutter (`android/check_tags.py`) false frames fell from 37 to 23 to 0 in 3,000, but those frames are independent: a misread from something stationary could repeat and pass. Missions now approach only the plants listed in the app, so a misread must also land on a listed number. That narrows the risk but does not remove it.
 0a. **A real tag has never been read through the camera.** Only the test image and simulated views have. A test on 2026-11-05 logged no tags in 700 live frames, but it is unknown whether a tag was shown. **Check this first:** the mission depends on it.
 0b. **Tag range is limited by the strict checks.** In simulation a 10 cm tag reads head-on to about 2 m, at 30 degrees to about 1.6 m, and at 50 degrees to about 1.2 m. Beyond that a larger tag is needed.
-1. **`RoverNetwork` has never run.** Holding the phone on a Wi-Fi network with no internet is the most likely thing to need a fix. USB testing bypassed it.
+1. **`RoverNetwork` works on home Wi-Fi, not yet the rover's.** A full mission ran with the phone's robot link over real Wi-Fi to a laptop, with no silence stops. The rover's network has no internet, which may still need a fix. Test with `--bind 0.0.0.0` on the simulator and `--es wifi_host <laptop address>` on the app.
 2. **The firmware has never run on a board.** It only compiles.
 3. **Real tag distance is unmeasured.** It assumes a 10 cm tag and uses the camera's reported focal length.
 4. **Disease has not been seen on the phone.** Only healthy leaves and an ornamental plant.
