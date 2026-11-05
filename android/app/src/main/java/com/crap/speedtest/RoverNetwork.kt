@@ -6,6 +6,8 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import java.io.IOException
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 
@@ -47,6 +49,12 @@ class RoverNetwork(context: Context) : AutoCloseable {
         network.bindSocket(socket)
         socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
         return socket
+    }
+
+    /** The phone's address on the rover's Wi-Fi, for the remote page. */
+    fun address(): InetAddress? {
+        val network = wifi ?: return null
+        return manager.getLinkProperties(network)?.linkAddresses?.map { it.address }?.firstOrNull { it is Inet4Address }
     }
 
     override fun close() {

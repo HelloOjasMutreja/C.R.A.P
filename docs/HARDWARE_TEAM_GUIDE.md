@@ -137,6 +137,20 @@ What the buttons do:
 - **Run on robot / Approve / Skip:** act on the proposed next step. For "Move on", the button says **Mark done** and the rover does not move.
 - **Tests:** speed tests. Only the 480 px option works in this build.
 
+## Control it from a second phone
+
+Once the phone is mounted, you can't reach its screen. Use a second phone or laptop:
+
+1. Join it to the `AgriUGV` Wi-Fi.
+2. Read the address and PIN from the rover phone's screen, like `http://192.168.4.2:8080 PIN 123456`. The PIN changes each time the app starts.
+3. Open the address in a browser. You get the live view, a big **STOP**, the plant's status, and mission buttons.
+4. **STOP needs no PIN.** Starting a mission and approving actions do.
+5. A mission started from this page stops by itself if the page closes or the second phone sleeps, so keep its screen on.
+
+This has not been tried over real Wi-Fi yet, so please report whether it works.
+
+Leaving the app on the rover phone, such as for a call, stops the rover.
+
 ## Not built yet: arm and spray
 
 The firmware has no arm or spray commands, so "Inspect closer" and "Spray plant" show as **Failed** if run by hand. That is deliberate. A mission gets a closer view by driving instead, and never sprays.

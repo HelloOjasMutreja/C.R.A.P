@@ -5,9 +5,14 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.Paint
+import android.os.BatteryManager
 import android.os.Bundle
+import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import android.util.Size
 import android.view.Gravity
@@ -16,6 +21,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -29,20 +35,36 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.net.Socket
+import java.security.SecureRandom
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val MODEL_SIZE = 480
 private const val MODEL_THREADS = 4
 private const val FRAMES_PER_LOOK = 4
 private const val PLANTS_KEY = "mission_plants"
 private const val LOOK_TIMEOUT_MS = 8000L
+
+// While driving only tags are read. Spacing the frames keeps the tracker's 3 of 4 frames
+// meaningful: at full camera speed they would be nearly the same picture.
+private const val DRIVE_FRAME_MS = 100L
 private const val VISIT_TIMEOUT_MS = 15_000L
+private const val REMOTE_PICTURE_MS = 200L
+private const val REMOTE_PICTURE_QUALITY = 60
+
+// A mission started from the remote page stops if the page goes quiet. Browsers slow a hidden
+// page's timers to about one a second, which is still well inside this.
+private const val REMOTE_QUIET_LIMIT_MS = 4000L
 private const val NOT_SURE = "Not sure"
 private const val NEW_PLANT = "New plant"
 
@@ -65,6 +87,16 @@ private val ACTION_WORDS = mapOf(
 
 private val OPEN_ACTIONS = setOf("proposed", "awaiting_approval", "approved")
 
+private val HEAT_WORDS = mapOf(
+    PowerManager.THERMAL_STATUS_NONE to "normal",
+    PowerManager.THERMAL_STATUS_LIGHT to "warm",
+    PowerManager.THERMAL_STATUS_MODERATE to "hot",
+    PowerManager.THERMAL_STATUS_SEVERE to "very hot",
+    PowerManager.THERMAL_STATUS_CRITICAL to "critical",
+    PowerManager.THERMAL_STATUS_EMERGENCY to "critical",
+    PowerManager.THERMAL_STATUS_SHUTDOWN to "critical",
+)
+
 /** Runs the camera, detector, plant records and decisions entirely on the phone. */
 class LiveActivity : ComponentActivity() {
 
@@ -79,6 +111,33 @@ class LiveActivity : ComponentActivity() {
     private lateinit var analysis: ExecutorService
     private lateinit var network: RoverNetwork
     private lateinit var robot: WifiRobot
+    private var feed: FrameFeed? = null
+    private var remote: RemoteServer? = null
+    private lateinit var remotePin: String
+    private var lastPictureAt = 0L
+
+    // Copies of what the screen shows, for the remote page, which reads them from other threads.
+    @Volatile
+    private var remotePicture: ByteArray? = null
+
+    @Volatile
+    private var verdictWords = ""
+
+    @Volatile
+    private var placeWords = ""
+
+    @Volatile
+    private var recordWords = ""
+
+    @Volatile
+    private var frameMs = 0L
+
+    @Volatile
+    private var openActions: List<String> = emptyList()
+
+    @Volatile
+    private var runWords = "Run on robot"
+    private val feedBusy = AtomicBoolean(false)
 
     // Created and used only on the analysis thread, which also owns the plant records.
     private var detector: Detector? = null
@@ -87,6 +146,7 @@ class LiveActivity : ComponentActivity() {
     private var locator: TagLocator? = null
     private val verdict = LiveVerdict()
     private var frames = 0
+    private var lastFrameAt = 0L
     private lateinit var book: PlantBook
     private lateinit var plantsBox: EditText
     private lateinit var engine: DiagnosticEngine
@@ -136,6 +196,9 @@ class LiveActivity : ComponentActivity() {
         }
 
         preview = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
+        // A frame_host extra replaces the camera with the virtual field.
+        val frameHost = intent.getStringExtra("frame_host")
+        val feedView = frameHost?.let { ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP } }
         boxesView = OverlayView(this)
         verdictText = TextView(this).apply {
             setTextColor(Color.WHITE)
@@ -154,6 +217,7 @@ class LiveActivity : ComponentActivity() {
         val root = FrameLayout(this).apply {
             fitsSystemWindows = true
             addView(preview)
+            feedView?.let { addView(it) }
             addView(boxesView)
             addView(verdictText, layoutAt(Gravity.TOP, 0))
             addView(statsText, layoutAt(Gravity.TOP, 170))
@@ -169,7 +233,99 @@ class LiveActivity : ComponentActivity() {
         }
         setContentView(root)
 
-        if (hasCamera()) startCamera() else askForCamera.launch(Manifest.permission.CAMERA)
+        startRemote()
+        when {
+            frameHost != null -> feed = FrameFeed(frameHost) { frame -> useFeedFrame(frame, feedView!!) }
+            hasCamera() -> startCamera()
+            else -> askForCamera.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun startRemote() {
+        remotePin = intent.getStringExtra("remote_pin") ?: "%06d".format(SecureRandom().nextInt(1_000_000))
+        try {
+            remote = RemoteServer(remotePin, remoteControls, allowed = { it.isLoopbackAddress || it == network.address() })
+        } catch (error: IOException) {
+            Log.e("CRAP", "Remote page failed to start", error)
+        }
+    }
+
+    private val remoteControls = object : RemoteControls {
+        private val pageBytes by lazy { assets.open("remote.html").use { it.readBytes() } }
+
+        override fun page() = pageBytes
+
+        override fun frame() = remotePicture
+
+        override fun stop() = halt()
+
+        override fun startMission(plants: String) = runOnUiThread {
+            plantsBox.setText(plants)
+            startMission(fromRemote = true)
+        }
+
+        override fun act(action: String) {
+            when (action) {
+                "run" -> {
+                    robot.allowMoves()
+                    act { plant, id -> runOrFinish(plant, id) }
+                }
+                "approve" -> act { plant, id -> manager.approve(plant, id) }
+                "skip" -> act { plant, id -> manager.reject(plant, id) }
+            }
+        }
+
+        override fun status(): String = JSONObject()
+            .put("robot", robot.connected)
+            .put("mission", missionRunning)
+            .put("verdict", verdictWords)
+            .put("place", placeWords)
+            .put("record", recordWords)
+            .put("ms", frameMs)
+            .put("actions", JSONArray(openActions))
+            .put("runWords", runWords)
+            .put("battery", getSystemService(BatteryManager::class.java).getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY))
+            .put("heat", HEAT_WORDS[getSystemService(PowerManager::class.java).currentThermalStatus] ?: "unknown")
+            .toString()
+    }
+
+    /** A copy of the frame with the boxes and tag drawn on it. Only made while someone is watching. */
+    private fun makeRemotePicture(image: Bitmap, boxes: List<Box>, tag: Tag?) {
+        val copy = image.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(copy)
+        val pen = Paint().apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+            color = Color.GREEN
+        }
+        boxes.forEach { canvas.drawRect(it.x1, it.y1, it.x2, it.y2, pen) }
+        if (tag != null) {
+            pen.color = Color.CYAN
+            val half = tag.sidePixels / 2
+            canvas.drawRect(tag.centreX - half, tag.centreY - half, tag.centreX + half, tag.centreY + half, pen)
+        }
+        val bytes = ByteArrayOutputStream()
+        copy.compress(Bitmap.CompressFormat.JPEG, REMOTE_PICTURE_QUALITY, bytes)
+        copy.recycle()
+        remotePicture = bytes.toByteArray()
+    }
+
+    private fun remoteAddress(): String {
+        val where = network.address()?.hostAddress ?: return "Remote page: join the rover's Wi-Fi"
+        return "Remote: http://$where:$REMOTE_PORT PIN $remotePin"
+    }
+
+    /** Drops frames while the last one is being checked, as the real camera does. */
+    private fun useFeedFrame(frame: Bitmap, view: ImageView) {
+        runOnUiThread { view.setImageBitmap(frame) }
+        if (!feedBusy.compareAndSet(false, true)) return
+        analysis.execute {
+            try {
+                analyzeFrame { frame }
+            } finally {
+                feedBusy.set(false)
+            }
+        }
     }
 
     /** Always on screen, and bypasses the analysis thread so it works during a move. */
@@ -177,16 +333,24 @@ class LiveActivity : ComponentActivity() {
         text = "STOP"
         setTextColor(Color.WHITE)
         setBackgroundColor(Color.rgb(190, 30, 30))
-        setOnClickListener {
-            missionStop = true
-            Thread {
-                try {
-                    robot.stop()
-                } catch (error: RobotError) {
-                    runOnUiThread { verdictText.text = "Stop failed: ${error.message}" }
-                }
-            }.start()
-        }
+        setOnClickListener { halt() }
+    }
+
+    private fun halt() {
+        missionStop = true
+        Thread {
+            try {
+                robot.stop()
+            } catch (error: RobotError) {
+                runOnUiThread { verdictText.text = "Stop failed: ${error.message}" }
+            }
+        }.start()
+    }
+
+    /** With the app out of sight nobody can see STOP and the camera stops, so the rover must too. */
+    override fun onPause() {
+        super.onPause()
+        if (robot.connected) halt()
     }
 
     private fun bottomPanel(): View {
@@ -262,7 +426,7 @@ class LiveActivity : ComponentActivity() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
     /** Drives by itself, so it runs on its own thread and a person must stand by with STOP. */
-    private fun startMission() {
+    private fun startMission(fromRemote: Boolean = false) {
         if (missionRunning) return
         if (!robot.connected) {
             verdictText.text = "Robot not connected"
@@ -281,6 +445,7 @@ class LiveActivity : ComponentActivity() {
         missionStop = false
         robot.allowMoves()
         showMission("Mission started")
+        if (fromRemote) watchRemoteOperator()
 
         Thread {
             val mission = Mission(
@@ -291,16 +456,38 @@ class LiveActivity : ComponentActivity() {
                 stopRequested = { missionStop },
                 expected = plants,
             )
-            val result = mission.run()
+            val result = try {
+                mission.run()
+            } catch (error: Exception) {
+                Log.e("CRAP", "Mission failed", error)
+                halt()
+                MissionResult(emptyList(), emptyList(), "failed: ${error.message}")
+            }
             missionRunning = false
             runOnUiThread { plantsBox.isEnabled = true }
             Log.i("CRAP", "mission: $result")
             showMission("Mission ${result.ending}: ${result.visited.size} visited, ${result.missed.size} missed")
+            runOnUiThread { if (result.ending != "finished") verdictText.text = "Mission ${result.ending}" }
+        }.start()
+    }
+
+    /** The person who started this mission can only stop it through the page, so it must stay open. */
+    private fun watchRemoteOperator() {
+        Thread {
+            while (missionRunning) {
+                if (remote?.let { it.quietMs > REMOTE_QUIET_LIMIT_MS } != false) {
+                    showMission("Stopped: the remote page went quiet")
+                    halt()
+                    return@Thread
+                }
+                Thread.sleep(250)
+            }
         }.start()
     }
 
     private fun showMission(words: String) {
         Log.i("CRAP", "mission: $words")
+        recordWords = words
         runOnUiThread { recordText.text = words }
     }
 
@@ -455,10 +642,18 @@ class LiveActivity : ComponentActivity() {
         // During a mission the planner owns all movement, so these stay hidden.
         val usable = open.takeUnless { missionRunning }
         val waiting = usable?.status == "awaiting_approval"
-        val runWords = if (usable?.actionType == "move_on") "Mark done" else "Run on robot"
+        val runLabel = if (usable?.actionType == "move_on") "Mark done" else "Run on robot"
+        val offered = when {
+            usable == null -> emptyList()
+            waiting -> listOf("approve", "skip")
+            else -> listOf("run", "skip")
+        }
+        runWords = runLabel
+        openActions = offered
+        recordWords = words.toString()
         runOnUiThread {
             recordText.text = words
-            runButton.text = runWords
+            runButton.text = runLabel
             runButton.visibility = if (usable != null && !waiting) View.VISIBLE else View.GONE
             approveButton.visibility = if (waiting) View.VISIBLE else View.GONE
             skipButton.visibility = if (usable != null) View.VISIBLE else View.GONE
@@ -494,15 +689,34 @@ class LiveActivity : ComponentActivity() {
 
     private fun analyze(image: ImageProxy) {
         try {
+            analyzeFrame { uprightBitmap(image) }
+        } finally {
+            image.close()
+        }
+    }
+
+    private fun analyzeFrame(frame: () -> Bitmap) {
+        try {
+            // Read once: a visit asked for mid-frame must wait for a frame that ran the detector.
+            val record = plantToRecord
+            val driving = missionRunning && record == null
+            val now = SystemClock.elapsedRealtime()
+            if (driving && now - lastFrameAt < DRIVE_FRAME_MS) return
+            lastFrameAt = now
+
             val model = detector ?: createDetector(this, MODEL_SIZE, Provider.ONNX_XNNPACK, MODEL_THREADS)
                 .also { detector = it }
             val reader = tagReader ?: TagReader().also { tagReader = it }
             val finder = locator ?: TagLocator.forBackCamera(this).also { locator = it }
-            val upright = uprightBitmap(image)
+            val upright = frame()
 
             val start = System.nanoTime()
-            model.prepare(upright)
-            val boxes = model.detect().map(model::toImage)
+            val boxes = if (driving) {
+                emptyList()
+            } else {
+                model.prepare(upright)
+                model.detect().map(model::toImage)
+            }
             val tags = tagTracker.update(reader.readAll(upright))
             val tag = tags.firstOrNull()
             val ms = (System.nanoTime() - start) / 1_000_000
@@ -516,12 +730,20 @@ class LiveActivity : ComponentActivity() {
             // A known plant's species comes from its record, not from the model's guess.
             val species = tag?.plantId?.takeIf(book::hasPlant)?.let { book.getPlant(it).species }
             val shown = if (species == null) boxes else boxes.filter { LABELS[it.classId].species == species }
-            val words = verdict.add(shown)
+            val words = if (driving) "Driving, reading tags only" else verdict.add(shown)
             val place = tag?.let { "${it.plantId}: ${describe(finder.locate(it, upright.width, upright.height))}" }
 
-            plantToRecord?.let { plantId ->
+            if (record != null) {
                 plantToRecord = null
-                recordVisit(plantId, upright, boxes)
+                recordVisit(record, upright, boxes)
+            }
+
+            verdictWords = words
+            placeWords = place ?: "No plant tag"
+            frameMs = ms
+            if (remote?.watched == true && now - lastPictureAt >= REMOTE_PICTURE_MS) {
+                lastPictureAt = now
+                makeRemotePicture(upright, shown, tag)
             }
 
             frames++
@@ -531,13 +753,11 @@ class LiveActivity : ComponentActivity() {
                 boxesView.show(shown, tag, upright.width, upright.height)
                 verdictText.text = words
                 val link = if (robot.connected) "Robot connected" else "Robot not connected"
-                statsText.text = "${place ?: "No plant tag"}\n$ms ms per frame, ${shown.size} boxes\n$link"
+                statsText.text = "${place ?: "No plant tag"}\n$ms ms per frame, ${shown.size} boxes\n$link\n${remoteAddress()}"
             }
         } catch (error: Throwable) {
             Log.e("CRAP", "Live detection failed", error)
             runOnUiThread { verdictText.text = "Detection failed: ${error.message}" }
-        } finally {
-            image.close()
         }
     }
 
@@ -551,6 +771,8 @@ class LiveActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        feed?.close()
+        remote?.close()
         analysis.execute { detector?.close() }
         analysis.shutdown()
         robot.close()

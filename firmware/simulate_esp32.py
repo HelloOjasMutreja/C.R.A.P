@@ -85,8 +85,8 @@ class Rover:
                 self.status("STALLED" if self.stall else "COMPLETE")
 
 
-def serve(link, stall):
-    rover = Rover(link, stall)
+def serve(link, stall, make_rover=Rover):
+    rover = make_rover(link, stall)
     rover.status("CONNECTED")
 
     def background():

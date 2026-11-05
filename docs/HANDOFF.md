@@ -30,6 +30,7 @@ The target design has **no laptop**. A Nothing Phone (2a) Plus rides on the rove
 | `android/app/src/main/java/com/crap/speedtest/` | `LiveActivity` (screen), `Mission` (planner), `WifiRobot` and `RoverNetwork` (ESP32 link), `DiagnosticEngine`, `ActionManager`, `PlantRecords`, `TagReader`, `Detector` |
 | `firmware/AgriUGV_ESP32/` | ESP32 firmware, fixed version |
 | `firmware/simulate_esp32.py` | Stand-in ESP32 for testing the app |
+| `firmware/simulate_field.py` | Virtual field: stand-in ESP32 plus the rover's camera view, for testing or demos |
 | `firmware/drive_test.py` | Drive the rover by hand from a laptop |
 | `diagnostics/`, `actions/`, `dossier/` | Python versions of the rules. **Source of truth for behaviour** |
 | `vision/` | Python detector and YOLO weights |
@@ -46,6 +47,9 @@ The target design has **no laptop**. A Nothing Phone (2a) Plus rides on the rove
 - **Species comes from the plant's record, not the model.** The model knows 13 species and mislabels others.
 - **The mission owns movement near plants.** It never runs the rules' "move on" drive, which is blind and would hit the plant. It never sprays.
 - **STOP latches.** A queued move must not run after STOP. Moves are allowed again only when a person asks.
+- **While driving, the app reads tags only.** The detector runs for a visit, not on the way there. Frames are spaced 100 ms apart so the tracker's 3 of 4 frames are not nearly the same picture.
+- **Leaving the app stops the rover.** With the app out of sight, nobody can see STOP and the camera stops.
+- **The remote page needs a PIN to act, but not to stop.** A mission started from it stops if the page goes quiet for 4 seconds.
 - **Detector confidence is weak evidence.** Agreement across distinct views is what counts. See the rules in `diagnostics/engine.py`.
 
 ## Build and test
@@ -56,7 +60,7 @@ This Windows laptop needs these settings. Android Studio's bundled Java 25 is to
 export JAVA_HOME="/c/Users/Ojas/.jdks/jbr-21.0.11" GRADLE_USER_HOME="D:/GradleHome"
 GRADLE=$(ls -d /d/GradleHome/wrapper/dists/gradle-8.9-bin/*/gradle-8.9/bin)/gradle.bat
 cd android
-"$GRADLE" :app:testDebugUnitTest      # 39 tests
+"$GRADLE" :app:testDebugUnitTest      # 49 tests
 "$GRADLE" :app:assembleDebug -Prover  # slim APK for the team
 ```
 
@@ -69,6 +73,15 @@ cd android
   adb reverse tcp:3333 tcp:3333
   adb shell am start -n com.crap.speedtest/.LiveActivity --es robot_host 127.0.0.1
   ```
+- **Whole mission without hardware:**
+  ```bash
+  python firmware/simulate_field.py
+  adb reverse tcp:3333 tcp:3333
+  adb reverse tcp:3334 tcp:3334
+  adb shell am start -n com.crap.speedtest/.LiveActivity --es robot_host 127.0.0.1 --es frame_host 127.0.0.1
+  ```
+  Type `1-3` in the plant box. PLANT_017 is off that list and should be ignored.
+- **Remote page over USB:** `adb forward tcp:8080 tcp:8080`, then open `http://127.0.0.1:8080`. Add `--es remote_pin 123456` to the start command to set the PIN.
 - **Tag checks without a camera:** `python android/check_tags.py`
 - **Tests over USB:** `adb shell am start -n com.crap.speedtest/.MainActivity --es run heat` (also `gpu`, `speed`, `tag`). Results appear in `adb logcat -s CRAP:I`. `uiautomator` hangs while the camera runs, so tap by coordinates from a screenshot.
 
@@ -91,6 +104,8 @@ cd android
 12. **The Wi-Fi password `agriugv123` is in a public repo.** Change it for anything beyond the demo.
 13. **The paper is out of date.** It describes the older repeat-sighting rule and the laptop design. Its numbers and claims need updating before submission.
 14. **The Android package is still called `com.crap.speedtest`** from its first version.
+15. **The remote page has never run over real Wi-Fi.** It depends on the ESP32 passing traffic between two connected devices, and on Android answering on a network with no internet.
+16. **The page is plain HTTP.** The PIN crosses the rover's Wi-Fi unencrypted, and the Wi-Fi password is public (gap 12).
 
 ## Next steps, in order
 
@@ -102,7 +117,7 @@ cd android
 5. Run a supervised one-plant mission on the real rover, and tune `MissionSettings`.
 6. Test real diseased leaves through the phone. A real suspected-to-confirmed run is needed.
 7. Add arm and spray to the firmware, using the commands in the hardware guide, then set `hasArm` in `WifiRobot` and map them. Keep spraying behind approval.
-8. Add a way to approve spraying without touching a phone on a moving rover: a second phone, or approval before the run.
-9. Add a remote view for demos, as the screen rides on the rover.
+8. Test the remote page from a second phone on the rover's Wi-Fi (gap 15).
+9. Check spraying approval through the remote page once spraying exists.
 10. Collect real field photos, measure accuracy, and retrain if needed. The detector is the accuracy ceiling.
 11. Update the paper to match the final design and results.
