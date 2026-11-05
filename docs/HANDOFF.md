@@ -110,7 +110,7 @@ cd android
 15. **Stop paths pass on the phone, in simulation only.** A quiet page, remote STOP, leaving the app and a cut link each ended the mission, and the app reconnected by itself without resuming it. None has stopped a real rover.
 15a. **The remote page works over home Wi-Fi, but not yet on the rover's.** A laptop loaded it and pressed STOP on a normal network. On the rover it also depends on the ESP32 passing traffic between two connected devices.
 16a. **Stretched pictures can fool the detector.** A sample leaf squeezed from 4:3 to square read as mosaic virus and reached "diseased, next spray". The same leaf cropped square reads healthy. Check for this if the mount or lens distorts the picture.
-16b. **Phone heat:** the phone reported "very hot" with the detector at about 1.9 seconds a frame while charging from 1%. Test heat on a charged phone.
+16b. **Phone heat is the field risk to watch.** 29 virtual missions in 15 minutes ran with no crash, stable memory (400-520 MB) and steady speed (about 300 ms a detector frame). Indoors the CPU still reached about 70 C and the casing 41 C, which this phone reports as severe, so the remote page says "very hot". The battery sensor read only 32 C, so do not rely on it. Direct sun will be worse, and nothing yet stops a mission for heat.
 16. **The page is plain HTTP.** The PIN crosses the rover's Wi-Fi unencrypted, and the Wi-Fi password is public (gap 12).
 
 ## Next steps, in order
