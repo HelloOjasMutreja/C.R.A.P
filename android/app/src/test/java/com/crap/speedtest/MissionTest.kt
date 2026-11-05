@@ -310,4 +310,83 @@ class MissionTest {
         assertEquals(listOf("PLANT_001"), result.missed)
         assertTrue(result.visited.isEmpty())
     }
+
+    private fun rowOfThree() = Field(
+        linkedMapOf("PLANT_001" to (0.0 to 100.0), "PLANT_002" to (60.0 to 100.0), "PLANT_003" to (120.0 to 100.0)),
+    )
+
+    private val rowPlants = setOf("PLANT_001", "PLANT_002", "PLANT_003")
+
+    @Test
+    fun rowStepMovesAlongTheRowAndFacesTheNextPlant() {
+        val field = rowOfThree()
+        val inspector = FakeInspector(field)
+
+        val result = Mission(field, field, inspector, MissionSettings(rowSpacingCm = 60.0), expected = rowPlants).run()
+
+        assertEquals(listOf("PLANT_001", "PLANT_002", "PLANT_003"), result.visited)
+        val step = field.log.indexOf("turn 90")
+        assertEquals(listOf("turn 90", "move 60", "turn -90"), field.log.subList(step, step + 3))
+    }
+
+    @Test
+    fun rowStepStopsAfterTheLastPlant() {
+        val field = rowOfThree()
+
+        Mission(field, field, FakeInspector(field), MissionSettings(rowSpacingCm = 60.0), expected = rowPlants).run()
+
+        assertEquals(2, field.log.count { it == "move 60" })
+    }
+
+    @Test
+    fun rowStepCanGoLeft() {
+        val field = Field(linkedMapOf("PLANT_001" to (0.0 to 100.0), "PLANT_002" to (-60.0 to 100.0)))
+
+        Mission(field, field, FakeInspector(field), MissionSettings(rowSpacingCm = -60.0), expected = setOf("PLANT_001", "PLANT_002")).run()
+
+        val step = field.log.indexOf("turn -90")
+        assertEquals(listOf("turn -90", "move 60", "turn 90"), field.log.subList(step, step + 3))
+    }
+
+    @Test
+    fun rowStepIsOffUnlessAsked() {
+        val field = rowOfThree()
+
+        Mission(field, field, FakeInspector(field), expected = rowPlants).run()
+
+        assertFalse(field.log.contains("move 60"))
+    }
+
+    @Test
+    fun rowStepCountsTowardsTheTravelLimit() {
+        val field = rowOfThree()
+        val tight = MissionSettings(rowSpacingCm = 60.0, maxTravelCm = 120.0)
+
+        val result = Mission(field, field, FakeInspector(field), tight, expected = rowPlants).run()
+
+        assertEquals("travel limit reached", result.ending)
+    }
+
+    @Test
+    fun readsAPlanWithAndWithoutRowSpacing() {
+        assertEquals(null, parseMissionPlan("1-3")!!.rowSpacingCm)
+        assertEquals(60.0, parseMissionPlan("1-3 / 60")!!.rowSpacingCm)
+        assertEquals(-45.0, parseMissionPlan("1, 2 / -45")!!.rowSpacingCm)
+        assertEquals(3, parseMissionPlan("1-3 / 60")!!.plants.size)
+    }
+
+    @Test
+    fun aRowGetsATravelLimitThatFitsIt() {
+        assertEquals(840.0, parseMissionPlan("1-6 / 60")!!.settings().maxTravelCm, 0.01)
+        assertEquals(600.0, parseMissionPlan("1-2 / 30")!!.settings().maxTravelCm, 0.01)
+        assertEquals(600.0, parseMissionPlan("1-6")!!.settings().maxTravelCm, 0.01)
+    }
+
+    @Test
+    fun rejectsABadRowSpacing() {
+        assertEquals(null, parseMissionPlan("1-3 / 5"))
+        assertEquals(null, parseMissionPlan("1-3 / 500"))
+        assertEquals(null, parseMissionPlan("1-3 / wide"))
+        assertEquals(null, parseMissionPlan("1-3 / 60 / 2"))
+    }
 }

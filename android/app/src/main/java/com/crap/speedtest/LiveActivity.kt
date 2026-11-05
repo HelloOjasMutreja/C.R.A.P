@@ -376,7 +376,7 @@ class LiveActivity : ComponentActivity() {
             addView(skipButton)
         }
         plantsBox = EditText(this).apply {
-            hint = "Plants to visit, like 1-5, 7"
+            hint = "Plants, like 1-5, 7. Straight row: 1-6 / 60"
             setHintTextColor(Color.LTGRAY)
             setTextColor(Color.WHITE)
             isSingleLine = true
@@ -435,9 +435,9 @@ class LiveActivity : ComponentActivity() {
             return
         }
         val typed = plantsBox.text.toString()
-        val plants = parsePlantList(typed)
-        if (plants == null) {
-            showMission("Enter the plant numbers to visit, like 1-5, 7")
+        val plan = parseMissionPlan(typed)
+        if (plan == null) {
+            showMission("Enter the plants to visit, like 1-5, 7. For a straight row, add the spacing: 1-6 / 60")
             return
         }
         getPreferences(MODE_PRIVATE).edit().putString(PLANTS_KEY, typed).apply()
@@ -455,8 +455,9 @@ class LiveActivity : ComponentActivity() {
                 eyes = cameraEyes,
                 inspector = missionInspector,
                 report = ::showMission,
+                settings = plan.settings(),
                 stopRequested = { missionStop },
-                expected = plants,
+                expected = plan.plants,
             )
             val result = try {
                 mission.run()

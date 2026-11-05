@@ -37,6 +37,8 @@ data class MissionSettings(
     val closerCm: Double = 8.0,
     val retreatCm: Double = 25.0,
     val maxTravelCm: Double = 600.0,
+    /** Gap between plants along a straight row, with the next plant to the right. Negative means left. Null turns the row step off. */
+    val rowSpacingCm: Double? = null,
 )
 
 data class MissionResult(val visited: List<String>, val missed: List<String>, val ending: String)
@@ -54,6 +56,30 @@ fun parsePlantList(text: String): Set<String>? {
         (first..last).mapTo(plants) { "PLANT_%03d".format(it) }
     }
     return plants.ifEmpty { null }
+}
+
+data class MissionPlan(val plants: Set<String>, val rowSpacingCm: Double?) {
+    /** A row needs more driving per plant than a single stop, so its travel limit grows with the row. */
+    fun settings(): MissionSettings {
+        val base = MissionSettings(rowSpacingCm = rowSpacingCm)
+        val spacing = rowSpacingCm ?: return base
+        return base.copy(maxTravelCm = maxOf(base.maxTravelCm, plants.size * (abs(spacing) + ROW_DRIVING_PER_PLANT_CM)))
+    }
+}
+
+private const val MIN_ROW_SPACING_CM = 20.0
+private const val MAX_ROW_SPACING_CM = 200.0
+private const val ROW_DRIVING_PER_PLANT_CM = 80.0 // Back away, return to the standoff, and closer views.
+
+/** Reads "1-6" or, for a straight row, "1-6 / 60": the plants, then their spacing in cm. Null if not understood. */
+fun parseMissionPlan(text: String): MissionPlan? {
+    val parts = text.split("/")
+    if (parts.size > 2) return null
+    val plants = parsePlantList(parts[0]) ?: return null
+    if (parts.size == 1) return MissionPlan(plants, null)
+    val spacing = parts[1].trim().toDoubleOrNull() ?: return null
+    if (abs(spacing) !in MIN_ROW_SPACING_CM..MAX_ROW_SPACING_CM) return null
+    return MissionPlan(plants, spacing)
 }
 
 private class TravelLimitReached : Exception()
@@ -93,6 +119,7 @@ class Mission(
                     missed.add(target.plantId)
                 }
                 move(-settings.retreatCm)
+                stepAlongRow()
             }
             "finished"
         } catch (_: TravelLimitReached) {
@@ -102,6 +129,21 @@ class Mission(
         }
         report("Mission $ending: ${visited.size} plants visited")
         return MissionResult(visited, missed, ending)
+    }
+
+    /**
+     * Slide sideways to face the next stake square on. Searching on the spot can fail in a row,
+     * because a tag seen from too sharp an angle cannot be read.
+     */
+    private fun stepAlongRow() {
+        val spacing = settings.rowSpacingCm ?: return
+        val left = expected?.filter { it !in visited && it !in missed } ?: return
+        if (left.isEmpty()) return
+        report("Moving along the row to the next plant")
+        val side = if (spacing > 0) 90.0 else -90.0
+        turn(side)
+        move(abs(spacing))
+        turn(-side)
     }
 
     /** Turn on the spot until a plant not yet handled is in view. */
