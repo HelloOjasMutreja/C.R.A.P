@@ -238,6 +238,42 @@ class MissionTest {
     }
 
     @Test
+    fun aTagNotOnTheListIsNeverApproached() {
+        val field = Field(mapOf("PLANT_017" to (0.0 to 120.0)))
+
+        val result = Mission(field, field, FakeInspector(field), expected = setOf("PLANT_001")).run()
+
+        assertTrue(result.visited.isEmpty())
+        assertTrue(result.missed.isEmpty())
+        assertTrue(field.log.none { it.startsWith("move") })
+    }
+
+    @Test
+    fun listedPlantsAreVisitedAndOthersIgnored() {
+        val field = Field(mapOf("PLANT_017" to (0.0 to 100.0), "PLANT_001" to (60.0 to 150.0)))
+
+        val result = Mission(field, field, FakeInspector(field), expected = setOf("PLANT_001")).run()
+
+        assertEquals(listOf("PLANT_001"), result.visited)
+    }
+
+    @Test
+    fun plantListsAreRead() {
+        assertEquals(
+            setOf("PLANT_001", "PLANT_002", "PLANT_003", "PLANT_007"),
+            parsePlantList(" 1-3, 7 "),
+        )
+        assertEquals(setOf("PLANT_000"), parsePlantList("0"))
+    }
+
+    @Test
+    fun badPlantListsAreRefused() {
+        for (text in listOf("", " , ", "abc", "5-1", "50", "1-2-3", "-1", "7,x")) {
+            assertEquals(text, null, parsePlantList(text))
+        }
+    }
+
+    @Test
     fun travelIsLimited() {
         val field = Field(mapOf("PLANT_001" to (0.0 to 200.0)))
 

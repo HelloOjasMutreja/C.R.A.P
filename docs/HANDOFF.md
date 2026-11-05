@@ -56,7 +56,7 @@ This Windows laptop needs these settings. Android Studio's bundled Java 25 is to
 export JAVA_HOME="/c/Users/Ojas/.jdks/jbr-21.0.11" GRADLE_USER_HOME="D:/GradleHome"
 GRADLE=$(ls -d /d/GradleHome/wrapper/dists/gradle-8.9-bin/*/gradle-8.9/bin)/gradle.bat
 cd android
-"$GRADLE" :app:testDebugUnitTest      # 35 tests
+"$GRADLE" :app:testDebugUnitTest      # 39 tests
 "$GRADLE" :app:assembleDebug -Prover  # slim APK for the team
 ```
 
@@ -74,7 +74,7 @@ cd android
 
 ## Known gaps
 
-0. **False tags are reduced, but not ruled out.** The phone once reported `PLANT_017` at 474 cm with no tag present. `TagReader` now decodes strictly and rejects tiny or misshapen tags, and `TagTracker` needs 3 of the last 4 frames. On simulated clutter (`android/check_tags.py`) false frames fell from 37 to 23 to 0 in 3,000, but those frames are independent: a misread from something stationary could repeat and pass. Accepting only expected plant IDs would close this.
+0. **False tags are reduced, but not ruled out.** The phone once reported `PLANT_017` at 474 cm with no tag present. `TagReader` now decodes strictly and rejects tiny or misshapen tags, and `TagTracker` needs 3 of the last 4 frames. On simulated clutter (`android/check_tags.py`) false frames fell from 37 to 23 to 0 in 3,000, but those frames are independent: a misread from something stationary could repeat and pass. Missions now approach only the plants listed in the app, so a misread must also land on a listed number. That narrows the risk but does not remove it.
 0a. **A real tag has never been read through the camera.** Only the test image and simulated views have. A test on 2026-11-05 logged no tags in 700 live frames, but it is unknown whether a tag was shown. **Check this first:** the mission depends on it.
 0b. **Tag range is limited by the strict checks.** In simulation a 10 cm tag reads head-on to about 2 m, at 30 degrees to about 1.6 m, and at 50 degrees to about 1.2 m. Beyond that a larger tag is needed.
 1. **`RoverNetwork` has never run.** Holding the phone on a Wi-Fi network with no internet is the most likely thing to need a fix. USB testing bypassed it.

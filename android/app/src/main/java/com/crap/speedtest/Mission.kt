@@ -41,6 +41,21 @@ data class MissionSettings(
 
 data class MissionResult(val visited: List<String>, val missed: List<String>, val ending: String)
 
+private const val LAST_MARKER = 49 // The tags use the 50-marker ArUco set, numbered from 0.
+
+/** Reads a list like "1-5, 7" into plant IDs. Returns null if it is empty or not understood. */
+fun parsePlantList(text: String): Set<String>? {
+    val plants = LinkedHashSet<String>()
+    for (part in text.split(",").map { it.trim() }.filter { it.isNotEmpty() }) {
+        val ends = part.split("-").map { it.trim().toIntOrNull() ?: return null }
+        val first = ends.first()
+        val last = ends.last()
+        if (ends.size > 2 || first < 0 || last > LAST_MARKER || first > last) return null
+        (first..last).mapTo(plants) { "PLANT_%03d".format(it) }
+    }
+    return plants.ifEmpty { null }
+}
+
 private class TravelLimitReached : Exception()
 
 /**
@@ -57,6 +72,8 @@ class Mission(
     private val settings: MissionSettings = MissionSettings(),
     private val report: (String) -> Unit = {},
     private val stopRequested: () -> Boolean = { false },
+    /** The only plants to approach, so a misread tag with another number is ignored. Null allows any. */
+    private val expected: Set<String>? = null,
 ) {
     private var travelled = 0.0
     private val visited = ArrayList<String>()
@@ -92,7 +109,9 @@ class Mission(
         val steps = (360 / settings.scanStepDegrees).toInt()
         repeat(steps) {
             checkStop()
-            val found = eyes.look().firstOrNull { it.plantId !in visited && it.plantId !in missed }
+            val found = eyes.look().firstOrNull {
+                it.plantId !in visited && it.plantId !in missed && (expected == null || it.plantId in expected)
+            }
             if (found != null) return found
             report("Searching for a plant tag")
             turn(settings.scanStepDegrees)

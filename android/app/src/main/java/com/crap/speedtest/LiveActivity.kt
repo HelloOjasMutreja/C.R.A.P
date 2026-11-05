@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -39,6 +40,7 @@ import java.util.concurrent.TimeoutException
 private const val MODEL_SIZE = 480
 private const val MODEL_THREADS = 4
 private const val FRAMES_PER_LOOK = 4
+private const val PLANTS_KEY = "mission_plants"
 private const val LOOK_TIMEOUT_MS = 8000L
 private const val VISIT_TIMEOUT_MS = 15_000L
 private const val NOT_SURE = "Not sure"
@@ -86,6 +88,7 @@ class LiveActivity : ComponentActivity() {
     private val verdict = LiveVerdict()
     private var frames = 0
     private lateinit var book: PlantBook
+    private lateinit var plantsBox: EditText
     private lateinit var engine: DiagnosticEngine
     private lateinit var manager: ActionManager
     private var shownPlant: String? = null
@@ -206,6 +209,13 @@ class LiveActivity : ComponentActivity() {
             addView(approveButton)
             addView(skipButton)
         }
+        plantsBox = EditText(this).apply {
+            hint = "Plants to visit, like 1-5, 7"
+            setHintTextColor(Color.LTGRAY)
+            setTextColor(Color.WHITE)
+            isSingleLine = true
+            setText(getPreferences(MODE_PRIVATE).getString(PLANTS_KEY, ""))
+        }
         val main = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(
@@ -233,6 +243,7 @@ class LiveActivity : ComponentActivity() {
             setPadding(24, 16, 24, 16)
             addView(recordText)
             addView(actions)
+            addView(plantsBox)
             addView(main)
         }
     }
@@ -257,6 +268,15 @@ class LiveActivity : ComponentActivity() {
             verdictText.text = "Robot not connected"
             return
         }
+        val typed = plantsBox.text.toString()
+        val plants = parsePlantList(typed)
+        if (plants == null) {
+            showMission("Enter the plant numbers to visit, like 1-5, 7")
+            return
+        }
+        getPreferences(MODE_PRIVATE).edit().putString(PLANTS_KEY, typed).apply()
+        // The keyboard pushes STOP off the screen, so it must not open during a mission.
+        plantsBox.isEnabled = false
         missionRunning = true
         missionStop = false
         robot.allowMoves()
@@ -269,9 +289,11 @@ class LiveActivity : ComponentActivity() {
                 inspector = missionInspector,
                 report = ::showMission,
                 stopRequested = { missionStop },
+                expected = plants,
             )
             val result = mission.run()
             missionRunning = false
+            runOnUiThread { plantsBox.isEnabled = true }
             Log.i("CRAP", "mission: $result")
             showMission("Mission ${result.ending}: ${result.visited.size} visited, ${result.missed.size} missed")
         }.start()

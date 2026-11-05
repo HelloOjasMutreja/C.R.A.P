@@ -126,10 +126,11 @@ With the wheels on the ground, in an open space, use `drive_test.py`:
 
 **Known problem:** false tag readings are now much rarer, but still possible, and a mission could drive towards one. Use an open space, and be ready with STOP.
 
-1. Place a tagged plant 1 to 2 metres away.
-2. Tap **Start mission**.
-3. The rover turns to find a tag, drives to about 40 cm from it, records a visit, and backs away. It looks for the next tag and stops when it finds none.
-4. Red **STOP** cancels everything at any time.
+1. Place a tagged plant about 1 metre away, and no more than 1.5 metres.
+2. In the **Plants to visit** box, type the tag numbers in this field, like `7` or `1-5, 7`. The rover ignores every other tag. The app remembers the list.
+3. Tap **Start mission**.
+4. The rover turns to find a tag, drives to about 40 cm from it, records a visit, and backs away. It looks for the next listed tag and stops when it finds none.
+5. Red **STOP** cancels everything at any time.
 
 What the buttons do:
 - **Record visit:** saves one visit from where the rover is, without moving.
