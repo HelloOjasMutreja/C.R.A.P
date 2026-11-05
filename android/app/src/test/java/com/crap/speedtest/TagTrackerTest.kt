@@ -8,6 +8,12 @@ import org.junit.Test
 private fun tag(id: Int, side: Float = 60f) = Tag(id, FloatArray(8), side, 100f, 100f)
 
 class TagTrackerTest {
+    @Test
+    fun aTurnedTagIsMeasuredByItsLongerSides() {
+        assertEquals(68.5f, tagSide(listOf(57f, 65f, 58f, 72f)), 0.01f)
+        assertEquals(50f, tagSide(listOf(50f, 50f, 50f, 50f)), 0.01f)
+    }
+
 
     @Test
     fun aSingleFrameIsNotTrusted() {

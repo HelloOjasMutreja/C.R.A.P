@@ -84,7 +84,7 @@ class TagReader {
         return Tag(
             markerId = id,
             corners = p,
-            sidePixels = sides(p).average().toFloat(),
+            sidePixels = tagSide(sides(p)),
             centreX = (p[0] + p[2] + p[4] + p[6]) / 4,
             centreY = (p[1] + p[3] + p[5] + p[7]) / 4,
         )

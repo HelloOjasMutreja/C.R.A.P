@@ -121,14 +121,24 @@ class Mission(
 
     /** Face the tag, then close the gap in small steps, looking again after every move. */
     private fun approach(plantId: String): Boolean {
+        var lastStepTaken = false
         repeat(settings.maxApproachSteps) {
             checkStop()
-            val tag = see(plantId) ?: return false
+            val tag = see(plantId)
+            if (tag == null) {
+                // A low or high tag leaves the picture up close, just as the rover gets there.
+                if (lastStepTaken) report("$plantId's tag left the picture close up. Treating this as arrived.")
+                return lastStepTaken
+            }
             val gap = tag.distanceCm - settings.standoffCm
             when {
                 abs(tag.bearingDegrees) > settings.faceWithinDegrees -> turn(tag.bearingDegrees)
                 abs(gap) <= settings.toleranceCm -> return true
-                else -> move(gap.coerceIn(-settings.maxStepCm, settings.maxStepCm))
+                else -> {
+                    val step = gap.coerceIn(-settings.maxStepCm, settings.maxStepCm)
+                    move(step)
+                    lastStepTaken = step == gap
+                }
             }
         }
         return false

@@ -12,6 +12,9 @@ const val MIN_TAG_SIDE_PIXELS = 20f
 /** A square seen at a steep angle looks stretched, but not by more than this. */
 const val MAX_TAG_SIDE_RATIO = 1.6f
 
+/** Turning a tag away shortens only one pair of sides, so the longer pair gives its true size. */
+fun tagSide(sides: List<Float>): Float = maxOf((sides[0] + sides[2]) / 2, (sides[1] + sides[3]) / 2)
+
 /** Whether a detection has the size and shape of a real tag. */
 fun plausibleTag(sides: List<Float>): Boolean {
     val shortest = sides.min()

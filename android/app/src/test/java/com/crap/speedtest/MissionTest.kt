@@ -285,6 +285,19 @@ class MissionTest {
     }
 
     @Test
+    fun aTagLeavingThePictureOnTheLastStepCountsAsArrived() {
+        val field = Field(mapOf("PLANT_001" to (0.0 to 100.0)))
+        val tagGoesOffScreenUpClose = object : Eyes {
+            override fun look() = field.look().filter { it.distanceCm > 50 }
+        }
+
+        val result = Mission(field, tagGoesOffScreenUpClose, FakeInspector(field)).run()
+
+        assertEquals(listOf("PLANT_001"), result.visited)
+        assertTrue(result.missed.isEmpty())
+    }
+
+    @Test
     fun aTagLostDuringApproachIsMissedNotChased() {
         val field = Field(mapOf("PLANT_001" to (0.0 to 200.0)))
         val fading = object : Eyes {

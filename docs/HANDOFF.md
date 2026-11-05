@@ -19,7 +19,7 @@ The target design has **no laptop**. A Nothing Phone (2a) Plus rides on the rove
 | 3. Plant tags, distance, direction | Built | Self-test image on the phone. **No real printed tag yet** |
 | 4. Records and rules on the phone | Done | 3,008 visits match the Python exactly; a real visit on the phone |
 | 5. Robot link over Wi-Fi | Built | Tests, and the phone against a simulator over USB. **No real ESP32 or real Wi-Fi yet** |
-| 6. Mission loop | Built | 200 simulated fields; on the phone, scan and STOP only. **No real rover, and no full approach on a phone** |
+| 6. Mission loop | Built | 200 simulated fields, and a full two-plant mission on the phone in the virtual field: stopped 41 and 42 cm from plants, ignored an unlisted tag. **No real rover** |
 | 7. Arm, spray, field test | Not started | Needs hardware and firmware |
 
 ## Where things are
@@ -60,7 +60,7 @@ This Windows laptop needs these settings. Android Studio's bundled Java 25 is to
 export JAVA_HOME="/c/Users/Ojas/.jdks/jbr-21.0.11" GRADLE_USER_HOME="D:/GradleHome"
 GRADLE=$(ls -d /d/GradleHome/wrapper/dists/gradle-8.9-bin/*/gradle-8.9/bin)/gradle.bat
 cd android
-"$GRADLE" :app:testDebugUnitTest      # 49 tests
+"$GRADLE" :app:testDebugUnitTest      # 51 tests
 "$GRADLE" :app:assembleDebug -Prover  # slim APK for the team
 ```
 
@@ -104,7 +104,10 @@ cd android
 12. **The Wi-Fi password `agriugv123` is in a public repo.** Change it for anything beyond the demo.
 13. **The paper is out of date.** It describes the older repeat-sighting rule and the laptop design. Its numbers and claims need updating before submission.
 14. **The Android package is still called `com.crap.speedtest`** from its first version.
-15. **The remote page has never run over real Wi-Fi.** It depends on the ESP32 passing traffic between two connected devices, and on Android answering on a network with no internet.
+15. **The stop paths are not proven on the phone.** The remote page started a mission and refused a missing PIN over USB. The tests for a quiet page, remote STOP, leaving the app and a cut link were interrupted when the phone dropped off USB at 1% battery.
+15a. **The remote page has never run over real Wi-Fi.** It depends on the ESP32 passing traffic between two connected devices, and on Android answering on a network with no internet.
+16a. **A healthy-looking leaf reached "diseased, next spray" in the virtual field,** from two close views of one sample image. Spraying still needs a person, but check this false alarm before trusting a diseased verdict.
+16b. **Phone heat:** the phone reported "very hot" with the detector at about 1.9 seconds a frame while charging from 1%. Test heat on a charged phone.
 16. **The page is plain HTTP.** The PIN crosses the rover's Wi-Fi unencrypted, and the Wi-Fi password is public (gap 12).
 
 ## Next steps, in order

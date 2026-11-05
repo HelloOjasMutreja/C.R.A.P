@@ -189,8 +189,10 @@ class LiveActivity : ComponentActivity() {
         robot = WifiRobot {
             if (testHost == null) network.connect() else Socket(testHost, ROBOT_PORT)
         }
+        // Simulated plants must never mix with the real records.
+        val records = if (intent.hasExtra("frame_host")) "plants_virtual.json" else "plants.json"
         analysis.execute {
-            book = PlantBook(File(filesDir, "plants.json"))
+            book = PlantBook(File(filesDir, records))
             engine = DiagnosticEngine(book)
             manager = ActionManager(book, robot)
         }
