@@ -38,7 +38,8 @@ import java.util.concurrent.TimeoutException
 
 private const val MODEL_SIZE = 480
 private const val MODEL_THREADS = 4
-private const val LOOK_TIMEOUT_MS = 5000L
+private const val FRAMES_PER_LOOK = 4
+private const val LOOK_TIMEOUT_MS = 8000L
 private const val VISIT_TIMEOUT_MS = 15_000L
 private const val NOT_SURE = "Not sure"
 private const val NEW_PLANT = "New plant"
@@ -80,6 +81,7 @@ class LiveActivity : ComponentActivity() {
     // Created and used only on the analysis thread, which also owns the plant records.
     private var detector: Detector? = null
     private var tagReader: TagReader? = null
+    private val tagTracker = TagTracker()
     private var locator: TagLocator? = null
     private val verdict = LiveVerdict()
     private var frames = 0
@@ -193,7 +195,7 @@ class LiveActivity : ComponentActivity() {
         runButton = actionButton("Run on robot") {
             // Cleared here, at the tap: a STOP pressed after this must still cancel the queued move.
             robot.allowMoves()
-            act { plant, action -> manager.execute(plant, action) }
+            act { plant, action -> runOrFinish(plant, action) }
         }
         approveButton = actionButton("Approve") { act { plant, action -> manager.approve(plant, action) } }
         skipButton = actionButton("Skip") { act { plant, action -> manager.reject(plant, action) } }
@@ -281,9 +283,9 @@ class LiveActivity : ComponentActivity() {
     }
 
     private val cameraEyes = object : Eyes {
-        /** Two frames must finish, because the first may have been taken while the rover moved. */
+        /** Enough frames must finish for the tracker to confirm a tag seen after the rover stopped. */
         override fun look(): List<Sighting> {
-            val wanted = frameCount + 2
+            val wanted = frameCount + FRAMES_PER_LOOK
             val deadline = System.currentTimeMillis() + LOOK_TIMEOUT_MS
             while (frameCount < wanted) {
                 if (missionStop) return emptyList()
@@ -386,6 +388,15 @@ class LiveActivity : ComponentActivity() {
         showRecord()
     }
 
+    /** "Move on" drives forward blindly, so by hand it is only marked done. A person moves the rover. */
+    private fun runOrFinish(plantId: String, actionId: String) {
+        if (book.getAction(plantId, actionId).actionType == "move_on") {
+            manager.markDone(plantId, actionId, "Marked done by the operator; the rover did not move.")
+        } else {
+            manager.execute(plantId, actionId)
+        }
+    }
+
     /** Runs a change to the open action, then refreshes the panel. */
     private fun act(change: (String, String) -> Unit) {
         analysis.execute {
@@ -422,8 +433,10 @@ class LiveActivity : ComponentActivity() {
         // During a mission the planner owns all movement, so these stay hidden.
         val usable = open.takeUnless { missionRunning }
         val waiting = usable?.status == "awaiting_approval"
+        val runWords = if (usable?.actionType == "move_on") "Mark done" else "Run on robot"
         runOnUiThread {
             recordText.text = words
+            runButton.text = runWords
             runButton.visibility = if (usable != null && !waiting) View.VISIBLE else View.GONE
             approveButton.visibility = if (waiting) View.VISIBLE else View.GONE
             skipButton.visibility = if (usable != null) View.VISIBLE else View.GONE
@@ -468,7 +481,7 @@ class LiveActivity : ComponentActivity() {
             val start = System.nanoTime()
             model.prepare(upright)
             val boxes = model.detect().map(model::toImage)
-            val tags = reader.readAll(upright)
+            val tags = tagTracker.update(reader.readAll(upright))
             val tag = tags.firstOrNull()
             val ms = (System.nanoTime() - start) / 1_000_000
             visiblePlant = tag?.plantId

@@ -117,12 +117,14 @@ With the wheels on the ground, in an open space, use `drive_test.py`:
 3. Put each tag on a stake beside its plant, facing the rover's path, at about camera height.
 4. Mount the phone upright (portrait), facing forward, firmly, on the rover's centre line.
 5. Check: hold a tag 1 metre from the camera. The app should show a cyan outline, the plant ID and about `100 cm`.
+   **Please report this result.** A real printed tag has not been tested through the camera yet.
+6. Keep tags within about 1.5 metres and facing the rover. A 10 cm tag is rejected if it looks too small or too angled. The app needs about 2 seconds of steady view to trust a tag.
 
 ## Step 7: Run a mission
 
 **Stay within reach of the power cut-off.** The rover cannot see obstacles.
 
-**Known problem:** the app can occasionally read a tag that is not there, and a mission could drive towards it. Use an open space, and be ready with STOP until this is fixed.
+**Known problem:** false tag readings are now much rarer, but still possible, and a mission could drive towards one. Use an open space, and be ready with STOP.
 
 1. Place a tagged plant 1 to 2 metres away.
 2. Tap **Start mission**.
@@ -131,7 +133,7 @@ With the wheels on the ground, in an open space, use `drive_test.py`:
 
 What the buttons do:
 - **Record visit:** saves one visit from where the rover is, without moving.
-- **Run on robot / Approve / Skip:** act on the proposed next step. **Be careful:** "Move on" run by hand drives forward about 30 cm with no checks, so it can hit the plant in front of it. The mission never does this.
+- **Run on robot / Approve / Skip:** act on the proposed next step. For "Move on", the button says **Mark done** and the rover does not move.
 - **Tests:** speed tests. Only the 480 px option works in this build.
 
 ## Not built yet: arm and spray

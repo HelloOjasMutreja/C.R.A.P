@@ -40,10 +40,10 @@ class TagReader {
 
     init {
         check(OpenCVLoader.initLocal()) { "OpenCV did not load" }
-        detector = ArucoDetector(
-            Objdetect.getPredefinedDictionary(Objdetect.DICT_4X4_50),
-            DetectorParameters(),
-        )
+        val parameters = DetectorParameters()
+        // No bit correction: with only 16 bits per tag, correcting errors invents tags.
+        parameters.set_errorCorrectionRate(0.0)
+        detector = ArucoDetector(Objdetect.getPredefinedDictionary(Objdetect.DICT_4X4_50), parameters)
     }
 
     /** Return the largest tag, which is the closest plant, or null if none is visible. */
@@ -60,10 +60,10 @@ class TagReader {
             Imgproc.cvtColor(colour, grey, Imgproc.COLOR_RGBA2GRAY)
             detector.detectMarkers(grey, found, ids)
 
-            return found.indices.map { i ->
+            return found.indices.mapNotNull { i ->
                 val points = FloatArray(8)
                 found[i].get(0, 0, points)
-                tagFrom(ids.get(i, 0)[0].toInt(), points)
+                if (plausibleTag(sides(points))) tagFrom(ids.get(i, 0)[0].toInt(), points) else null
             }.sortedByDescending { it.sidePixels }
         } finally {
             colour.release()
@@ -73,17 +73,18 @@ class TagReader {
         }
     }
 
+    private fun sides(p: FloatArray) = listOf(
+        hypot(p[2] - p[0], p[3] - p[1]),
+        hypot(p[4] - p[2], p[5] - p[3]),
+        hypot(p[6] - p[4], p[7] - p[5]),
+        hypot(p[0] - p[6], p[1] - p[7]),
+    )
+
     private fun tagFrom(id: Int, p: FloatArray): Tag {
-        val sides = listOf(
-            hypot(p[2] - p[0], p[3] - p[1]),
-            hypot(p[4] - p[2], p[5] - p[3]),
-            hypot(p[6] - p[4], p[7] - p[5]),
-            hypot(p[0] - p[6], p[1] - p[7]),
-        )
         return Tag(
             markerId = id,
             corners = p,
-            sidePixels = sides.average().toFloat(),
+            sidePixels = sides(p).average().toFloat(),
             centreX = (p[0] + p[2] + p[4] + p[6]) / 4,
             centreY = (p[1] + p[3] + p[5] + p[7]) / 4,
         )

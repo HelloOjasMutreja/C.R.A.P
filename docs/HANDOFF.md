@@ -56,7 +56,7 @@ This Windows laptop needs these settings. Android Studio's bundled Java 25 is to
 export JAVA_HOME="/c/Users/Ojas/.jdks/jbr-21.0.11" GRADLE_USER_HOME="D:/GradleHome"
 GRADLE=$(ls -d /d/GradleHome/wrapper/dists/gradle-8.9-bin/*/gradle-8.9/bin)/gradle.bat
 cd android
-"$GRADLE" :app:testDebugUnitTest      # 27 tests
+"$GRADLE" :app:testDebugUnitTest      # 35 tests
 "$GRADLE" :app:assembleDebug -Prover  # slim APK for the team
 ```
 
@@ -69,18 +69,21 @@ cd android
   adb reverse tcp:3333 tcp:3333
   adb shell am start -n com.crap.speedtest/.LiveActivity --es robot_host 127.0.0.1
   ```
+- **Tag checks without a camera:** `python android/check_tags.py`
 - **Tests over USB:** `adb shell am start -n com.crap.speedtest/.MainActivity --es run heat` (also `gpu`, `speed`, `tag`). Results appear in `adb logcat -s CRAP:I`. `uiautomator` hangs while the camera runs, so tap by coordinates from a screenshot.
 
 ## Known gaps
 
-0. **False tag readings: fix this before a real mission.** With no tag in the room, the phone once reported `PLANT_017` at 474 cm. A mission would chase it. Before driving, require a tag in several frames in a row, and only accept IDs of registered or expected plants. The 4x4 marker set is small, so a larger one may also help.
+0. **False tags are reduced, but not ruled out.** The phone once reported `PLANT_017` at 474 cm with no tag present. `TagReader` now decodes strictly and rejects tiny or misshapen tags, and `TagTracker` needs 3 of the last 4 frames. On simulated clutter (`android/check_tags.py`) false frames fell from 37 to 23 to 0 in 3,000, but those frames are independent: a misread from something stationary could repeat and pass. Accepting only expected plant IDs would close this.
+0a. **A real tag has never been read through the camera.** Only the test image and simulated views have. A test on 2026-11-05 logged no tags in 700 live frames, but it is unknown whether a tag was shown. **Check this first:** the mission depends on it.
+0b. **Tag range is limited by the strict checks.** In simulation a 10 cm tag reads head-on to about 2 m, at 30 degrees to about 1.6 m, and at 50 degrees to about 1.2 m. Beyond that a larger tag is needed.
 1. **`RoverNetwork` has never run.** Holding the phone on a Wi-Fi network with no internet is the most likely thing to need a fix. USB testing bypassed it.
 2. **The firmware has never run on a board.** It only compiles.
 3. **Real tag distance is unmeasured.** It assumes a 10 cm tag and uses the camera's reported focal length.
 4. **Disease has not been seen on the phone.** Only healthy leaves and an ornamental plant.
 5. **Motion constants are guesses:** 30 cm/s and 45 degrees/s in `WifiRobot`, and everything in `config.h`.
 6. **Live frames take about 475–530 ms,** slower than the 316 ms bench result, with one 1,180 ms frame after a visit. Cause unknown.
-7. **"Move on" run by hand is blind.** It drives about 30 cm forward. Consider hiding Run for that action.
+7. **"Move on" by hand no longer moves the rover.** It is marked done, and a person moves it. The rules' forward drive remains in `PLANS` for parity with the Python.
 8. **Mission settings are unproven:** 40 cm standoff, 6 degree aim, 600 cm travel limit.
 9. **No obstacle detection.** The rover needs a person standing by.
 10. **The app is locked to portrait,** and the mount is undecided.
@@ -91,7 +94,7 @@ cd android
 
 ## Next steps, in order
 
-0. Fix false tag readings (gap 0). This needs no hardware.
+0. Show a printed tag to the phone's camera and confirm the cyan outline and distance (gap 0a).
 1. Flash the firmware on the real ESP32 and test with `drive_test.py`.
 2. Connect the phone over real Wi-Fi, and fix `RoverNetwork` if needed.
 3. Calibrate `config.h`, then the motion constants in `WifiRobot`.
